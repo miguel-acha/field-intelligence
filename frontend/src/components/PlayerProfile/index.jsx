@@ -213,31 +213,33 @@ export default function PlayerProfile({ match, selectedPlayer, onPlayerSelect })
     } finally { setIsAnalyzing(false); }
   }, [selectedPlayer, match, isAnalyzing]);
 
-  /* ─── PICKER ─── */
+  /* ─── PICKER — two columns side by side ─── */
   if (!selectedPlayer) {
     const teams = [...new Set(match.players.map(p => p.team))];
+    const colHeader = (
+      <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 44px 60px 55px 55px', gap: '0.6rem', padding: '0.4rem 0.75rem', borderBottom: '1px solid #1c1c1c', background: '#090909' }}>
+        <div /><span style={{ fontSize: '0.44rem', color: '#555', letterSpacing: '0.1em', fontFamily: 'Inter' }}>JUGADOR</span>
+        <span style={{ fontSize: '0.44rem', color: '#555', letterSpacing: '0.1em', fontFamily: 'Inter' }}>POS</span>
+        <span style={{ fontSize: '0.44rem', color: '#555', letterSpacing: '0.1em', fontFamily: 'Inter', textAlign: 'center' }}>VIS</span>
+        <span style={{ fontSize: '0.44rem', color: '#555', letterSpacing: '0.1em', fontFamily: 'Inter', textAlign: 'center' }}>SCN</span>
+        <span style={{ fontSize: '0.44rem', color: '#555', letterSpacing: '0.1em', fontFamily: 'Inter', textAlign: 'center' }}>FAT</span>
+      </div>
+    );
     return (
       <div style={{ maxWidth: 1280, margin: '0 auto' }}>
-        <div style={{ padding: '1.75rem 2rem 1rem', borderBottom: '1px solid #111' }}>
-          <span className="section-label" style={{ marginBottom: 0 }}>Seleccioná un jugador</span>
+        <div style={{ padding: '1.5rem 2rem 0.75rem', borderBottom: '1px solid #1c1c1c' }}>
+          <span className="section-label" style={{ margin: 0 }}>Seleccioná un jugador</span>
         </div>
-        <div ref={pickerRef}>
-          {/* Column headers */}
-          <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 44px 60px 55px 55px', gap: '0.6rem', padding: '0.5rem 0.75rem', borderBottom: '1px solid #111' }}>
-            <div />
-            <span style={{ fontSize: '0.48rem', color: '#555', letterSpacing: '0.12em', fontFamily: 'Inter' }}>JUGADOR</span>
-            <span style={{ fontSize: '0.48rem', color: '#555', letterSpacing: '0.12em', fontFamily: 'Inter' }}>POS</span>
-            <span style={{ fontSize: '0.48rem', color: '#555', letterSpacing: '0.12em', fontFamily: 'Inter', textAlign: 'center' }}>VISIÓN</span>
-            <span style={{ fontSize: '0.48rem', color: '#555', letterSpacing: '0.12em', fontFamily: 'Inter', textAlign: 'center' }}>SCAN</span>
-            <span style={{ fontSize: '0.48rem', color: '#555', letterSpacing: '0.12em', fontFamily: 'Inter', textAlign: 'center' }}>FAT</span>
-          </div>
-          {teams.map(team => (
-            <div key={team}>
-              <div style={{ padding: '0.55rem 0.75rem', background: '#0a0a0a', borderBottom: '1px solid #111' }}>
-                <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '0.75rem', color: tc(team), letterSpacing: '0.1em' }}>
+        <div ref={pickerRef} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '1px solid #1c1c1c' }}>
+          {teams.map((team, ti) => (
+            <div key={team} style={{ borderRight: ti === 0 ? '1px solid #1c1c1c' : 'none' }}>
+              <div style={{ padding: '0.6rem 0.75rem', background: '#0a0a0a', borderBottom: '1px solid #1c1c1c', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div style={{ width: 3, height: 12, background: tc(team), borderRadius: 2 }} />
+                <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '0.78rem', color: tc(team), letterSpacing: '0.1em' }}>
                   {team.toUpperCase()}
                 </span>
               </div>
+              {colHeader}
               {match.players.filter(p => p.team === team).map(p => (
                 <PickerRow key={p.name} player={p} onClick={() => onPlayerSelect(p)} />
               ))}
@@ -319,74 +321,23 @@ export default function PlayerProfile({ match, selectedPlayer, onPlayerSelect })
         )}
       </div>
 
-      {/* ── BODY GRID: left = KPIs + pitch | right = AI ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr' }}>
-
-        {/* Left column */}
-        <div ref={kpiRef} style={{ borderRight: '1px solid #111' }}>
-          <KPIBlock label="Spatial Awareness" value={selectedPlayer.spatialAwareness} unit="/100" benchmark={71} color="#00C853" delay={0} />
-          <KPIBlock label="Scan Rate"          value={selectedPlayer.scanRate}          unit="esc/min" benchmark={3.1} color="#2979FF" delay={0.1} />
-          <KPIBlock label="Sprint Value"       value={selectedPlayer.sprintValueScore}  unit="sprints" benchmark={5.2} color="#FF9800" delay={0.2} />
-
-          {/* Pitch */}
-          <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #111' }}>
-            <div className="section-label" style={{ marginBottom: '0.75rem' }}>Patrón de movimiento</div>
-            <PitchHeatmap player={selectedPlayer} />
-          </div>
-
-          {/* Chemistry + Fatigue inline */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '1px solid #111' }}>
-            <div style={{ padding: '1.25rem', borderRight: '1px solid #111' }}>
-              <div className="section-label" style={{ marginBottom: '0.6rem' }}>Chemistry</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <svg viewBox="0 0 48 48" style={{ width: 46, height: 46, flexShrink: 0, transform: 'rotate(-90deg)' }}>
-                  <circle cx="24" cy="24" r="19" fill="none" stroke="#111" strokeWidth="4" />
-                  <circle cx="24" cy="24" r="19" fill="none" stroke={color} strokeWidth="4" strokeLinecap="round"
-                    strokeDasharray={`${(selectedPlayer.chemistryScore / 100) * 119.4} 119.4`} />
-                </svg>
-                <div>
-                  <div style={{ fontFamily: 'JetBrains Mono', fontSize: '1.2rem', fontWeight: 700, color }}>{selectedPlayer.chemistryScore}</div>
-                  <div style={{ fontSize: '0.5rem', color: '#666', letterSpacing: '0.06em', fontFamily: 'Inter' }}>
-                    {selectedPlayer.chemistryPartner || '—'}
-                  </div>
-                </div>
-              </div>
+      {/* ── AI SPOTLIGHT — full width, top ── */}
+      <div ref={spotlightRef} style={{
+        padding: '2rem 2.5rem',
+        borderBottom: '1px solid #1c1c1c',
+        background: 'linear-gradient(180deg, rgba(227,34,25,0.04) 0%, transparent 60%)',
+        position: 'relative', overflow: 'hidden',
+      }}>
+        <img src="/data-accent.png" alt="" style={{ position: 'absolute', right: 0, top: 0, width: 200, opacity: 0.04, pointerEvents: 'none', userSelect: 'none' }} onError={e => { e.target.style.display = 'none'; }} />
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', gap: '1rem' }}>
+            <div>
+              <div style={{ fontSize: '0.48rem', color: '#E32219', letterSpacing: '0.2em', fontFamily: 'Inter', fontWeight: 700, marginBottom: '0.3rem' }}>OPENCAMBA AI</div>
+              <h3 style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.6rem', letterSpacing: '0.06em', color: '#fff', margin: 0, lineHeight: 1 }}>
+                Análisis Táctico
+              </h3>
             </div>
-            <div style={{ padding: '1.25rem' }}>
-              <div className="section-label" style={{ marginBottom: '0.6rem' }}>Fatiga</div>
-              <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2.2rem', letterSpacing: '0.04em', color: Math.abs(selectedPlayer.fatigueSig) > 18 ? '#E32219' : '#FF9800', lineHeight: 1 }}>
-                {selectedPlayer.fatigueSig}%
-              </div>
-              <div style={{ fontSize: '0.5rem', color: '#666', marginTop: '0.3rem', fontFamily: 'Inter' }}>caída en 2do tiempo</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right column: AI spotlight */}
-        <div ref={spotlightRef} style={{
-          padding: '2rem 2.5rem',
-          background: 'linear-gradient(135deg, rgba(227,34,25,0.03) 0%, transparent 50%)',
-          display: 'flex',
-          flexDirection: 'column',
-          minHeight: 480,
-          position: 'relative',
-          overflow: 'hidden',
-        }}>
-          <img src="/data-accent.png" alt="" style={{ position: 'absolute', right: -20, bottom: -10, width: 220, opacity: 0.04, pointerEvents: 'none', userSelect: 'none' }} onError={e => { e.target.style.display = 'none'; }} />
-
-          <div style={{ position: 'relative', zIndex: 1, flex: 1, display: 'flex', flexDirection: 'column' }}>
-            {/* Section header */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1.5rem', gap: '1rem' }}>
-              <div>
-                <div style={{ fontSize: '0.48rem', color: '#E32219', letterSpacing: '0.2em', fontFamily: 'Inter', fontWeight: 700, marginBottom: '0.4rem' }}>OPENCAMBA AI</div>
-                <h3 style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.8rem', letterSpacing: '0.06em', color: '#fff', margin: 0, lineHeight: 1 }}>
-                  Análisis Táctico
-                </h3>
-                <p style={{ fontSize: '0.7rem', color: '#444', margin: '0.4rem 0 0', lineHeight: 1.5 }}>
-                  Claude analiza los KPIs de tracking 3D y genera un informe de élite en tiempo real
-                </p>
-              </div>
-              <button className="btn-primary" onClick={handleAnalyze} disabled={isAnalyzing} style={{ flexShrink: 0 }}>
+            <button className="btn-primary" onClick={handleAnalyze} disabled={isAnalyzing} style={{ flexShrink: 0 }}>
                 {isAnalyzing ? (
                   <>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 1s linear infinite' }}>
@@ -398,32 +349,59 @@ export default function PlayerProfile({ match, selectedPlayer, onPlayerSelect })
               </button>
             </div>
 
-            {/* Output area */}
-            {!aiText && !isAnalyzing && (
-              <div style={{
-                flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                gap: '0.75rem', color: '#2a2a2a', textAlign: 'center',
-              }}>
-                <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '4rem', color: '#111', letterSpacing: '0.04em', lineHeight: 1 }}>
-                  {selectedPlayer.jerseyNumber}
-                </div>
-                <div style={{ fontSize: '0.75rem', color: '#666', lineHeight: 1.5 }}>
-                  Presioná <strong style={{ color: '#E32219' }}>Analizar con IA</strong> para el informe táctico de{' '}
-                  <strong style={{ color: '#fff' }}>{selectedPlayer.name.split(' ').slice(-1)[0]}</strong>
-                </div>
-              </div>
-            )}
+          {/* AI output */}
+          {!aiText && !isAnalyzing && (
+            <div style={{ fontSize: '0.75rem', color: '#444', marginTop: '0.75rem' }}>
+              Presioná <strong style={{ color: '#E32219' }}>Analizar con IA</strong> para el informe táctico de{' '}
+              <strong style={{ color: '#fff' }}>{selectedPlayer.name.split(' ').slice(-1)[0]}</strong>
+            </div>
+          )}
+          {(aiText || isAnalyzing) && (
+            <div style={{ marginTop: '1rem', background: 'rgba(0,0,0,0.35)', borderRadius: 8, padding: '1.25rem 1.5rem', borderLeft: '3px solid #E32219' }}>
+              <p style={{ fontFamily: 'Inter', fontSize: '0.88rem', lineHeight: 1.85, color: '#ddd', margin: 0, whiteSpace: 'pre-wrap' }}>
+                {aiText}{isAnalyzing && <span className="cursor-blink" />}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
 
-            {(aiText || isAnalyzing) && (
-              <div style={{
-                flex: 1, background: 'rgba(0,0,0,0.4)', borderRadius: 10,
-                padding: '1.5rem', borderLeft: '3px solid #E32219',
-              }}>
-                <p style={{ fontFamily: 'Inter', fontSize: '0.9rem', lineHeight: 1.85, color: '#ddd', margin: 0, whiteSpace: 'pre-wrap' }}>
-                  {aiText}{isAnalyzing && <span className="cursor-blink" />}
-                </p>
+      {/* ── DATA ROW — KPIs + pitch + chemistry ── */}
+      <div ref={kpiRef} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 280px 220px', borderBottom: '1px solid #1c1c1c' }}>
+        <KPIBlock label="Spatial Awareness" value={selectedPlayer.spatialAwareness} unit="/100" benchmark={71} color="#00C853" delay={0} />
+        <KPIBlock label="Scan Rate"          value={selectedPlayer.scanRate}          unit="esc/min" benchmark={3.1} color="#2979FF" delay={0.08} />
+        <KPIBlock label="Sprint Value"       value={selectedPlayer.sprintValueScore}  unit="sprints" benchmark={5.2} color="#FF9800" delay={0.16} />
+
+        {/* Pitch */}
+        <div style={{ padding: '1.25rem', borderLeft: '1px solid #1c1c1c' }}>
+          <div className="section-label" style={{ marginBottom: '0.6rem' }}>Movimiento</div>
+          <PitchHeatmap player={selectedPlayer} />
+        </div>
+
+        {/* Chemistry + Fatigue */}
+        <div style={{ borderLeft: '1px solid #1c1c1c', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '1.25rem', flex: 1, borderBottom: '1px solid #1c1c1c' }}>
+            <div className="section-label" style={{ marginBottom: '0.75rem' }}>Chemistry</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <svg viewBox="0 0 48 48" style={{ width: 44, height: 44, flexShrink: 0, transform: 'rotate(-90deg)' }}>
+                <circle cx="24" cy="24" r="19" fill="none" stroke="#1a1a1a" strokeWidth="4" />
+                <circle cx="24" cy="24" r="19" fill="none" stroke={color} strokeWidth="4" strokeLinecap="round"
+                  strokeDasharray={`${(selectedPlayer.chemistryScore / 100) * 119.4} 119.4`} />
+              </svg>
+              <div>
+                <div style={{ fontFamily: 'JetBrains Mono', fontSize: '1.2rem', fontWeight: 700, color }}>{selectedPlayer.chemistryScore}</div>
+                <div style={{ fontSize: '0.5rem', color: '#555', fontFamily: 'Inter', marginTop: '0.15rem' }}>
+                  {selectedPlayer.chemistryPartner || '—'}
+                </div>
               </div>
-            )}
+            </div>
+          </div>
+          <div style={{ padding: '1.25rem' }}>
+            <div className="section-label" style={{ marginBottom: '0.5rem' }}>Fatiga</div>
+            <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2rem', color: Math.abs(selectedPlayer.fatigueSig) > 18 ? '#E32219' : '#FF9800', lineHeight: 1 }}>
+              {selectedPlayer.fatigueSig}%
+            </div>
+            <div style={{ fontSize: '0.5rem', color: '#555', marginTop: '0.25rem' }}>caída en 2do tiempo</div>
           </div>
         </div>
       </div>

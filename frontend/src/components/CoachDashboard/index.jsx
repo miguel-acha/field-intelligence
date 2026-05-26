@@ -39,37 +39,40 @@ function getSubCandidate(players) {
     .sort((a, b) => a.fatigueSig - b.fatigueSig)[0];
 }
 
-/* ─── Stat bar ─── */
+/* ─── Stat bar — prominent version ─── */
 function StatRow({ label, homeVal, awayVal, homeColor, awayColor }) {
-  const homeRef = useRef(null);
-  const awayRef = useRef(null);
+  const barRef = useRef(null);
   const total = (homeVal || 0) + (awayVal || 0) || 1;
+  const homePct = (homeVal / total) * 100;
 
   useEffect(() => {
-    gsap.fromTo(homeRef.current,
-      { width: '0%' },
-      { width: `${(homeVal / total) * 100}%`, duration: 0.85, ease: 'power2.out', delay: 0.5 }
+    gsap.fromTo(barRef.current,
+      { width: '50%' },
+      { width: `${homePct}%`, duration: 1, ease: 'power3.out', delay: 0.3, overwrite: true }
     );
-    gsap.fromTo(awayRef.current,
-      { width: '0%' },
-      { width: `${(awayVal / total) * 100}%`, duration: 0.85, ease: 'power2.out', delay: 0.6 }
-    );
-  }, [homeVal, awayVal, total]);
+  }, [homeVal, homePct]);
+
+  const homeWins = homeVal > awayVal;
+  const awayWins = awayVal > homeVal;
 
   return (
-    <div style={{ marginBottom: '1.1rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.4rem' }}>
-        <span style={{ fontFamily: 'JetBrains Mono', fontSize: '1rem', fontWeight: 700, color: '#fff' }}>{homeVal}</span>
-        <span style={{ fontSize: '0.52rem', color: '#666', letterSpacing: '0.14em', textTransform: 'uppercase', fontFamily: 'Inter' }}>{label}</span>
-        <span style={{ fontFamily: 'JetBrains Mono', fontSize: '1rem', fontWeight: 700, color: '#fff' }}>{awayVal}</span>
+    <div style={{ marginBottom: '1.25rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+        <span style={{
+          fontFamily: 'JetBrains Mono', fontSize: '1.4rem', fontWeight: 700,
+          color: homeWins ? homeColor : '#fff',
+        }}>{homeVal}</span>
+        <span style={{ fontSize: '0.5rem', color: '#666', letterSpacing: '0.14em', textTransform: 'uppercase', fontFamily: 'Inter' }}>{label}</span>
+        <span style={{
+          fontFamily: 'JetBrains Mono', fontSize: '1.4rem', fontWeight: 700,
+          color: awayWins ? awayColor : '#fff',
+        }}>{awayVal}</span>
       </div>
-      <div style={{ display: 'flex', gap: 2, height: 2 }}>
-        <div style={{ flex: 1, background: '#1e1e1e', borderRadius: '2px 0 0 2px', overflow: 'hidden', display: 'flex', justifyContent: 'flex-end' }}>
-          <div ref={homeRef} style={{ height: '100%', background: homeColor }} />
-        </div>
-        <div style={{ flex: 1, background: '#1e1e1e', borderRadius: '0 2px 2px 0', overflow: 'hidden' }}>
-          <div ref={awayRef} style={{ height: '100%', background: awayColor }} />
-        </div>
+      {/* Single bar showing home % */}
+      <div style={{ height: 3, background: '#1c1c1c', borderRadius: 2, overflow: 'hidden', position: 'relative' }}>
+        <div ref={barRef} style={{ position: 'absolute', left: 0, top: 0, height: '100%', background: homeColor, borderRadius: 2 }} />
+        {/* Away color on the right */}
+        <div style={{ position: 'absolute', right: 0, top: 0, height: '100%', width: `${100 - homePct}%`, background: awayColor, borderRadius: 2 }} />
       </div>
     </div>
   );
@@ -230,6 +233,41 @@ export default function CoachDashboard({ match, onPlayerSelect, onViewChange }) 
         </div>
       </div>
 
+      {/* ══ TIMELINE — right below score ══ */}
+      <div style={{ padding: '1rem 2.5rem', borderBottom: '1px solid #1c1c1c', background: '#090909' }}>
+        <div style={{ position: 'relative', height: 32 }}>
+          <div style={{ position: 'absolute', top: 8, left: 0, right: 0, height: 1, background: '#1c1c1c' }} />
+          {[0, 15, 30, 45, 60, 75, 90].map(t => (
+            <div key={t} style={{ position: 'absolute', left: `${(t / 90) * 100}%`, top: 0, transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+              <div style={{ width: 1, height: 10, background: '#252525' }} />
+              <span style={{ fontSize: '0.44rem', color: '#444', fontFamily: 'JetBrains Mono' }}>{t}'</span>
+            </div>
+          ))}
+          {match.timeline.slice(0, 12).map((ev, i) => {
+            const c = { goal: '#00C853', chance: '#2979FF', pressing: '#FF9800', tactical: '#555' }[ev.type] || '#444';
+            const isGoal = ev.type === 'goal';
+            return (
+              <div key={i} title={`${ev.minute}' — ${ev.description}`} style={{
+                position: 'absolute', left: `${(ev.minute / 90) * 100}%`, top: isGoal ? 0 : 3,
+                transform: 'translateX(-50%)',
+                width: isGoal ? 16 : 8, height: isGoal ? 16 : 8,
+                borderRadius: '50%', background: c,
+                boxShadow: isGoal ? `0 0 12px ${c}88` : 'none',
+                border: `1px solid ${c}`, zIndex: isGoal ? 2 : 1, cursor: 'default',
+              }} />
+            );
+          })}
+        </div>
+        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+          {match.timeline.filter(ev => ev.type === 'goal').slice(0, 4).map((ev, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.18rem 0.5rem', background: 'rgba(0,200,83,0.06)', border: '1px solid rgba(0,200,83,0.16)', borderRadius: 4 }}>
+              <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '0.78rem', color: '#00C853' }}>{ev.minute}'</span>
+              <span style={{ fontSize: '0.6rem', color: '#888', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.description}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div ref={bodyRef}>
 
         {/* ══ PROTAGONISTS + STATS ══ */}
@@ -275,22 +313,22 @@ export default function CoachDashboard({ match, onPlayerSelect, onViewChange }) 
           </div>
 
           {/* Right: stats */}
-          <div style={{ padding: '1.75rem 1.5rem' }}>
-            <span className="section-label" style={{ display: 'block', marginBottom: '1.5rem' }}>Comparativa</span>
+          <div style={{ padding: '1.5rem 1.75rem', background: '#0a0a0a' }}>
+            {/* Team names header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1rem', color: homeColor, letterSpacing: '0.08em' }}>
+                {match.homeTeam.split(' ').slice(-1)[0]}
+              </span>
+              <span className="section-label" style={{ margin: 0 }}>Comparativa</span>
+              <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1rem', color: awayColor, letterSpacing: '0.08em' }}>
+                {match.awayTeam.split(' ').slice(-1)[0]}
+              </span>
+            </div>
             <StatRow label="Posesión %"    homeVal={stats.home.possession}     awayVal={stats.away.possession}     homeColor={homeColor} awayColor={awayColor} />
             <StatRow label="Tiros al arco" homeVal={stats.home.shotsOnTarget}  awayVal={stats.away.shotsOnTarget}  homeColor={homeColor} awayColor={awayColor} />
             <StatRow label="Pressing"      homeVal={stats.home.pressureEvents} awayVal={stats.away.pressureEvents} homeColor={homeColor} awayColor={awayColor} />
             <StatRow label="Pases"         homeVal={stats.home.passes}         awayVal={stats.away.passes}         homeColor={homeColor} awayColor={awayColor} />
             <StatRow label="Faltas"        homeVal={stats.home.fouls}          awayVal={stats.away.fouls}          homeColor={homeColor} awayColor={awayColor} />
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #1c1c1c' }}>
-              <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '0.7rem', color: homeColor, letterSpacing: '0.08em' }}>
-                {match.homeTeam.split(' ').slice(-1)[0]}
-              </span>
-              <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '0.7rem', color: awayColor, letterSpacing: '0.08em' }}>
-                {match.awayTeam.split(' ').slice(-1)[0]}
-              </span>
-            </div>
           </div>
         </div>
 
@@ -323,52 +361,6 @@ export default function CoachDashboard({ match, onPlayerSelect, onViewChange }) 
           </div>
         )}
 
-        {/* ══ TIMELINE ══ */}
-        <div style={{ padding: '1.5rem 2rem' }}>
-          <span className="section-label" style={{ display: 'block', marginBottom: '1.25rem' }}>Timeline del partido</span>
-
-          <div style={{ position: 'relative', height: 36, marginBottom: '1rem' }}>
-            <div style={{ position: 'absolute', top: 7, left: 0, right: 0, height: 1, background: '#1c1c1c' }} />
-            {[0, 15, 30, 45, 60, 75, 90].map(t => (
-              <div key={t} style={{ position: 'absolute', left: `${(t / 90) * 100}%`, top: 0, transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-                <div style={{ width: 1, height: 10, background: '#252525' }} />
-                <span style={{ fontSize: '0.44rem', color: '#444', fontFamily: 'JetBrains Mono' }}>{t}'</span>
-              </div>
-            ))}
-            {match.timeline.slice(0, 10).map((ev, i) => {
-              const c = { goal: '#00C853', chance: '#2979FF', pressing: '#FF9800', tactical: '#555' }[ev.type] || '#444';
-              const isGoal = ev.type === 'goal';
-              return (
-                <div key={i} title={`${ev.minute}' — ${ev.description}`} style={{
-                  position: 'absolute', left: `${(ev.minute / 90) * 100}%`, top: isGoal ? -1 : 2,
-                  transform: 'translateX(-50%)',
-                  width: isGoal ? 14 : 8, height: isGoal ? 14 : 8,
-                  borderRadius: '50%', background: c,
-                  boxShadow: isGoal ? `0 0 14px ${c}99` : 'none',
-                  border: `1px solid ${c}`, zIndex: isGoal ? 2 : 1,
-                }} />
-              );
-            })}
-          </div>
-
-          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-            {match.timeline.filter(ev => ev.type === 'goal').slice(0, 5).map((ev, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.22rem 0.55rem', background: 'rgba(0,200,83,0.06)', border: '1px solid rgba(0,200,83,0.18)', borderRadius: 4 }}>
-                <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '0.82rem', color: '#00C853' }}>{ev.minute}'</span>
-                <span style={{ fontSize: '0.62rem', color: '#888', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.description}</span>
-              </div>
-            ))}
-            {match.timeline.filter(ev => ev.type !== 'goal').slice(0, 3).map((ev, i) => {
-              const c = { chance: '#2979FF', pressing: '#FF9800', tactical: '#666' }[ev.type] || '#555';
-              return (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.22rem 0.55rem', background: `${c}0a`, border: `1px solid ${c}22`, borderRadius: 4 }}>
-                  <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '0.82rem', color: c }}>{ev.minute}'</span>
-                  <span style={{ fontSize: '0.62rem', color: '#888', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.description}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
 
       </div>
     </div>

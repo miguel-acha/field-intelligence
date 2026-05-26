@@ -100,10 +100,10 @@ export default function AnalystMode({ match, onPlayerSelect, onViewChange }) {
   const nlSpotlightRef = useRef(null);
   const nlPulseAnim = useRef(null);
 
-  // Entry animation
+  // Entry animation — no opacity, just slide
   useEffect(() => {
     if (containerRef.current) {
-      gsap.from(containerRef.current, { opacity: 0, y: 12, duration: 0.5, ease: 'power2.out' });
+      gsap.fromTo(containerRef.current, { y: 10 }, { y: 0, duration: 0.4, ease: 'power2.out', overwrite: true });
     }
   }, []);
 
@@ -259,61 +259,43 @@ export default function AnalystMode({ match, onPlayerSelect, onViewChange }) {
         </div>
       </div>
 
-      {/* ---- SCATTER CHART — bigger ---- */}
-      <div className="card">
-        <div className="section-label">
-          Scatter Plot — {xMeta.label} × {yMeta.label}
+      {/* ---- SCATTER CHART ---- */}
+      <div style={{ background: '#0d0d0d', border: '1px solid #1c1c1c', borderRadius: 10, padding: '1.25rem 1.5rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <span className="section-label" style={{ margin: 0 }}>{xMeta.label} × {yMeta.label}</span>
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            {teams.map(team => (
+              <div key={team} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: getTeamColor(team) }} />
+                <span style={{ fontSize: '0.6rem', color: '#777', fontFamily: 'Inter' }}>{team.split(' ').slice(-1)[0]}</span>
+              </div>
+            ))}
+          </div>
         </div>
-        <ResponsiveContainer width="100%" height={320}>
-          <ScatterChart margin={{ top: 10, right: 20, bottom: 20, left: 0 }}>
-            <CartesianGrid stroke="#222" strokeDasharray="3 3" />
+        <ResponsiveContainer width="100%" height={380}>
+          <ScatterChart margin={{ top: 20, right: 30, bottom: 30, left: 10 }}>
+            <CartesianGrid stroke="#1a1a1a" strokeDasharray="4 4" />
             <XAxis
-              type="number"
-              dataKey="x"
-              name={xMeta.label}
-              label={{
-                value: `${xMeta.label} ${xMeta.unit}`,
-                position: 'insideBottomRight', offset: -10,
-                fill: '#666', fontSize: 11,
-              }}
-              tick={{ fill: '#777', fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}
-              stroke="#333"
+              type="number" dataKey="x" name={xMeta.label}
+              tick={{ fill: '#666', fontSize: 10, fontFamily: 'JetBrains Mono, monospace' }}
+              stroke="#2a2a2a"
+              label={{ value: xMeta.label, position: 'insideBottom', offset: -15, fill: '#555', fontSize: 10 }}
             />
             <YAxis
-              type="number"
-              dataKey="y"
-              name={yMeta.label}
-              label={{
-                value: `${yMeta.label} ${yMeta.unit}`,
-                angle: -90, position: 'insideLeft',
-                fill: '#666', fontSize: 11,
-              }}
-              tick={{ fill: '#777', fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}
-              stroke="#333"
+              type="number" dataKey="y" name={yMeta.label}
+              tick={{ fill: '#666', fontSize: 10, fontFamily: 'JetBrains Mono, monospace' }}
+              stroke="#2a2a2a"
+              label={{ value: yMeta.label, angle: -90, position: 'insideLeft', offset: 10, fill: '#555', fontSize: 10 }}
             />
-            <Tooltip content={<ScatterTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+            <Tooltip content={<ScatterTooltip />} cursor={{ stroke: '#333', strokeDasharray: '3 3' }} />
             {scatterByTeam.map(({ team, color, data }) => (
-              <Scatter key={team} name={team.split(' ')[0]} data={data} fill={color} opacity={0.8}>
-                {data.map((entry, index) => (
-                  <Cell key={index} fill={color} />
-                ))}
-              </Scatter>
+              <Scatter key={team} name={team} data={data} shape={(props) => {
+                const { cx, cy } = props;
+                return <circle cx={cx} cy={cy} r={6} fill={color} fillOpacity={0.85} stroke={color} strokeWidth={1} strokeOpacity={0.4} />;
+              }} />
             ))}
           </ScatterChart>
         </ResponsiveContainer>
-        <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
-          {teams.map(team => (
-            <div key={team} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              <div style={{ width: 10, height: 10, borderRadius: '50%', background: getTeamColor(team) }} />
-              <span style={{
-                fontSize: '0.65rem', color: 'var(--text-muted)',
-                fontFamily: 'Inter, sans-serif',
-              }}>
-                {team}
-              </span>
-            </div>
-          ))}
-        </div>
       </div>
 
       {/* ---- DATA TABLE — 8 columns ---- */}

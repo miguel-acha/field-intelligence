@@ -6,9 +6,15 @@ export default function NavBar({ activeView, onViewChange, match }) {
   const tabsRef = useRef(null);
 
   useEffect(() => {
-    gsap.from(logoRef.current, { opacity: 0, x: -20, duration: 0.5, ease: 'power2.out' });
+    gsap.fromTo(logoRef.current,
+      { opacity: 0, x: -16 },
+      { opacity: 1, x: 0, duration: 0.45, ease: 'power2.out', overwrite: true }
+    );
     if (tabsRef.current) {
-      gsap.from(tabsRef.current.children, { opacity: 0, y: -8, stagger: 0.08, duration: 0.4, delay: 0.15, ease: 'power2.out' });
+      gsap.fromTo([...tabsRef.current.children],
+        { y: -6 },
+        { y: 0, stagger: 0.07, duration: 0.35, delay: 0.1, ease: 'power2.out', overwrite: true }
+      );
     }
   }, []);
 
