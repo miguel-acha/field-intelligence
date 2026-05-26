@@ -343,9 +343,12 @@ export default function CoachDashboard({ match, onPlayerSelect, onViewChange }) 
   const [aiText, setAiText]           = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiDone, setAiDone]           = useState(false);
-  const aiScrollRef = useRef(null);
-  const aiSpotRef   = useRef(null);
-  const aiPulseRef  = useRef(null);
+  const aiScrollRef    = useRef(null);
+  const aiSpotRef      = useRef(null);
+  const aiPulseRef     = useRef(null);
+  const ballRef        = useRef(null);
+  const flashHomeRef   = useRef(null);
+  const flashAwayRef   = useRef(null);
 
   const homeTop      = useMemo(() => getTopPerformers(match.players, match.homeTeam), [match]);
   const awayTop      = useMemo(() => getTopPerformers(match.players, match.awayTeam), [match]);
@@ -356,13 +359,52 @@ export default function CoachDashboard({ match, onPlayerSelect, onViewChange }) 
   const awayColor = tc(match.awayTeam);
   const stats     = match.teamStats;
 
+  const runBallAnim = useCallback(() => {
+    const ball = ballRef.current;
+    if (!ball) return;
+    const homeWins = match.score.home >= match.score.away;
+    const targetX  = homeWins ? -130 : 130;
+    const flashEl  = homeWins ? flashHomeRef.current : flashAwayRef.current;
+
+    const tl = gsap.timeline();
+    tl
+      .set(ball, { opacity: 0, scale: 0, x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1 })
+      .to(ball, { opacity: 1, scale: 1, duration: 0.2, ease: 'back.out(2.2)' })
+      .addLabel('arc')
+      // Arc: x + rotation in parallel with y up/down
+      .to(ball, { x: targetX, rotation: 720, duration: 0.68, ease: 'power1.inOut' }, 'arc')
+      .to(ball, { y: -58, duration: 0.34, ease: 'power2.out' }, 'arc')
+      .to(ball, { y: 0,   duration: 0.34, ease: 'power2.in'  }, 'arc+=0.34')
+      .addLabel('land', 'arc+=0.68')
+      // Bounce sequence — squish on impact then smaller bounces
+      .to(ball, { y: -28, scaleX: 0.9,  scaleY: 1.15, duration: 0.15, ease: 'power2.out' }, 'land')
+      .to(ball, { y:   0, scaleX: 1.25, scaleY: 0.75, duration: 0.12, ease: 'power2.in' })
+      .to(ball, { y: -13, scaleX: 1,    scaleY: 1,    duration: 0.11, ease: 'power2.out' })
+      .to(ball, { y:   0,                              duration: 0.09, ease: 'power2.in' })
+      .to(ball, { y:  -5,                              duration: 0.07, ease: 'power2.out' })
+      .to(ball, { y:   0,                              duration: 0.06, ease: 'power2.in' })
+      // Flash burst at score number
+      .add(() => {
+        if (flashEl) gsap.fromTo(flashEl,
+          { scale: 0.3, opacity: 1 },
+          { scale: 3.8, opacity: 0, duration: 0.55, ease: 'power1.out' }
+        );
+      }, '-=0.08')
+      // Score digits flash-scale
+      .to(homeWins ? homeRef.current : awayRef.current,
+        { scale: 1.2, duration: 0.1, ease: 'power2.out', yoyo: true, repeat: 1 }, '-=0.08'
+      )
+      // Ball settle + fade
+      .to(ball, { opacity: 0, scale: 0.3, y: 8, duration: 0.28, ease: 'power2.in', delay: 0.45 });
+  }, [match]);
+
   useEffect(() => {
     // Hero fade-in — use fromTo so final state is always explicit
     gsap.fromTo(heroRef.current,
       { opacity: 0, y: -14 },
       { opacity: 1, y: 0, duration: 0.55, ease: 'power3.out', overwrite: true }
     );
-    // Score count-up (no delay — content is visible immediately)
+    // Score count-up
     const ho = { v: 0 }, ao = { v: 0 };
     gsap.to(ho, {
       v: match.score.home, duration: 0.8, ease: 'power2.out', overwrite: true,
@@ -371,8 +413,9 @@ export default function CoachDashboard({ match, onPlayerSelect, onViewChange }) 
     gsap.to(ao, {
       v: match.score.away, duration: 0.8, delay: 0.12, ease: 'power2.out', overwrite: true,
       onUpdate: () => { if (awayRef.current) awayRef.current.textContent = Math.round(ao.v); },
+      onComplete: () => setTimeout(runBallAnim, 150), // ball launches after scores settle
     });
-    // Body: no opacity animation — content is always visible, just slide in
+    // Body slide in
     if (bodyRef.current) {
       gsap.fromTo(
         [...bodyRef.current.children],
@@ -380,7 +423,7 @@ export default function CoachDashboard({ match, onPlayerSelect, onViewChange }) 
         { y: 0, stagger: 0.07, duration: 0.4, ease: 'power2.out', overwrite: true }
       );
     }
-  }, [match]);
+  }, [match, runBallAnim]);
 
   useEffect(() => {
     setAiText(''); setAiDone(false);
@@ -437,10 +480,34 @@ export default function CoachDashboard({ match, onPlayerSelect, onViewChange }) 
               {match.homeTeam}
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <span ref={homeRef} style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 'clamp(4.5rem, 8vw, 6.5rem)', color: '#fff', lineHeight: 0.9 }}>0</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', position: 'relative' }}>
+            {/* ── Ball ── */}
+            <div ref={ballRef} style={{
+              position: 'absolute', left: '50%', top: '50%',
+              width: 26, height: 26, borderRadius: '50%',
+              transform: 'translate(-50%, -50%)',
+              background: 'radial-gradient(circle at 36% 32%, #ffffff 0%, #cccccc 30%, #666 65%, #111 100%)',
+              boxShadow: '0 3px 10px rgba(0,0,0,0.9), inset 0 -2px 4px rgba(0,0,0,0.5)',
+              opacity: 0, zIndex: 20, pointerEvents: 'none',
+            }} />
+            {/* ── Flash overlays at each score number ── */}
+            <div ref={flashHomeRef} style={{
+              position: 'absolute', left: 'calc(50% - 120px)', top: '50%',
+              width: 110, height: 110, borderRadius: '50%',
+              transform: 'translate(-50%, -50%)',
+              background: `radial-gradient(circle, ${homeColor}cc 0%, ${homeColor}55 35%, transparent 70%)`,
+              opacity: 0, pointerEvents: 'none', zIndex: 6,
+            }} />
+            <div ref={flashAwayRef} style={{
+              position: 'absolute', left: 'calc(50% + 120px)', top: '50%',
+              width: 110, height: 110, borderRadius: '50%',
+              transform: 'translate(-50%, -50%)',
+              background: `radial-gradient(circle, ${awayColor}cc 0%, ${awayColor}55 35%, transparent 70%)`,
+              opacity: 0, pointerEvents: 'none', zIndex: 6,
+            }} />
+            <span ref={homeRef} style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 'clamp(4.5rem, 8vw, 6.5rem)', color: '#fff', lineHeight: 0.9, display: 'inline-block' }}>0</span>
             <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2.5rem', color: '#222', lineHeight: 1 }}>—</span>
-            <span ref={awayRef} style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 'clamp(4.5rem, 8vw, 6.5rem)', color: '#fff', lineHeight: 0.9 }}>0</span>
+            <span ref={awayRef} style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 'clamp(4.5rem, 8vw, 6.5rem)', color: '#fff', lineHeight: 0.9, display: 'inline-block' }}>0</span>
           </div>
           <div style={{ textAlign: 'left', flex: 1 }}>
             <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 'clamp(1.1rem, 2.5vw, 1.8rem)', color: awayColor, letterSpacing: '0.06em' }}>
