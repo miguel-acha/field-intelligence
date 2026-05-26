@@ -154,22 +154,29 @@ function PerformerRow({ player, rank, onClick }) {
 const EVT_COLORS = { goal: '#00C853', chance: '#2979FF', pressing: '#FF9800', tactical: '#555' };
 const hexRgb = h => { const c = h.replace('#',''); return `${parseInt(c.slice(0,2),16)},${parseInt(c.slice(2,4),16)},${parseInt(c.slice(4,6),16)}`; };
 
-function GoalCard({ ev, color }) {
+function GoalCard({ ev }) {
   const ref = useRef(null);
-  const rgb = hexRgb(color);
+  const score = ev.description.match(/(\d+[-–]\d+)/)?.[1] || '';
+  const detail = ev.description.replace(/.*\d+[-–]\d+\s*[—–\-]+\s*/, '').trim();
   useEffect(() => {
     if (!ref.current) return;
-    const on = () => gsap.to(ref.current, { scale: 1.04, duration: 0.12 });
-    const off = () => gsap.to(ref.current, { scale: 1, duration: 0.12 });
+    const on = () => gsap.to(ref.current, { y: -2, duration: 0.12, ease: 'power2.out' });
+    const off = () => gsap.to(ref.current, { y: 0, duration: 0.12, ease: 'power2.in' });
     ref.current.addEventListener('mouseenter', on);
     ref.current.addEventListener('mouseleave', off);
     return () => { ref.current?.removeEventListener('mouseenter', on); ref.current?.removeEventListener('mouseleave', off); };
   }, []);
   return (
-    <div ref={ref} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.22rem 0.65rem', background: `rgba(0,200,83,0.06)`, border: '1px solid rgba(0,200,83,0.2)', borderRadius: 4, cursor: 'default' }}>
-      <svg width="7" height="7" viewBox="0 0 7 7"><circle cx="3.5" cy="3.5" r="3" fill="#00C853" /></svg>
-      <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '0.85rem', color: '#00C853' }}>{ev.minute}'</span>
-      <span style={{ fontSize: '0.62rem', color: '#999', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'Inter' }}>{ev.description}</span>
+    <div ref={ref} style={{
+      display: 'flex', alignItems: 'center', gap: '0.65rem',
+      padding: '0.5rem 1rem', borderRadius: 6, cursor: 'default',
+      background: 'rgba(0,200,83,0.05)', border: '1px solid rgba(0,200,83,0.18)',
+      minWidth: 160,
+    }}>
+      <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1rem', color: '#00C853', letterSpacing: '0.04em', flexShrink: 0 }}>{ev.minute}'</span>
+      <div style={{ width: 1, height: 18, background: '#1c1c1c', flexShrink: 0 }} />
+      {score && <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.1rem', color: '#fff', letterSpacing: '0.06em', flexShrink: 0 }}>{score}</span>}
+      <span style={{ fontSize: '0.6rem', color: '#777', fontFamily: 'Inter', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{detail}</span>
     </div>
   );
 }
@@ -180,154 +187,148 @@ function MatchTimeline({ match, homeColor, awayColor }) {
   const dotsRef    = useRef([]);
   const cardsRef   = useRef(null);
   const [activeEv, setActiveEv] = useState(null);
-  const [hIdx, setHIdx]         = useState(null);
   const events = useMemo(() => match.timeline.slice(0, 14), [match]);
+  const goals  = useMemo(() => events.filter(e => e.type === 'goal'), [events]);
 
   useEffect(() => {
     dotsRef.current = dotsRef.current.slice(0, events.length);
-
-    // 1. Track draws left→right
     gsap.fromTo(trackRef.current,
       { scaleX: 0, transformOrigin: 'left center' },
       { scaleX: 1, duration: 1.0, ease: 'power3.out', overwrite: true }
     );
-    // 2. Half-time line drops
     gsap.fromTo(halfRef.current,
       { scaleY: 0, transformOrigin: 'top center' },
-      { scaleY: 1, duration: 0.5, delay: 0.55, ease: 'power2.out', overwrite: true }
+      { scaleY: 1, duration: 0.45, delay: 0.6, ease: 'power2.out', overwrite: true }
     );
-    // 3. Dots pop in with stagger
     const dots = dotsRef.current.filter(Boolean);
     gsap.fromTo(dots,
       { scale: 0, transformOrigin: 'center center' },
-      { scale: 1, stagger: { amount: 0.7, from: 'start', ease: 'none' }, duration: 0.35, ease: 'back.out(1.9)', delay: 0.35, overwrite: true }
+      { scale: 1, stagger: { amount: 0.65, from: 'start' }, duration: 0.32, ease: 'back.out(2)', delay: 0.4, overwrite: true }
     );
-    // 4. Goal dots: continuous glow pulse
     events.forEach((ev, i) => {
       if (ev.type !== 'goal' || !dotsRef.current[i]) return;
       gsap.to(dotsRef.current[i], {
-        boxShadow: `0 0 18px #00C85399, 0 0 36px #00C85333`,
-        repeat: -1, yoyo: true, duration: 1.1, ease: 'sine.inOut', delay: 0.9 + i * 0.08,
+        boxShadow: '0 0 14px #00C85388, 0 0 28px #00C85322',
+        repeat: -1, yoyo: true, duration: 1.2, ease: 'sine.inOut', delay: 1.0 + i * 0.1,
       });
     });
-    // 5. Goal cards slide up
     if (cardsRef.current?.children.length) {
       gsap.fromTo([...cardsRef.current.children],
-        { y: 8, opacity: 0 },
-        { y: 0, opacity: 1, stagger: 0.06, duration: 0.35, ease: 'power2.out', delay: 1.1, overwrite: true }
+        { y: 6, opacity: 0 },
+        { y: 0, opacity: 1, stagger: 0.07, duration: 0.3, ease: 'power2.out', delay: 1.2, overwrite: true }
       );
     }
   }, [match]);
 
   function enterDot(i, ev) {
     const dot = dotsRef.current[i];
-    if (dot) gsap.to(dot, { scale: 1.65, y: -5, duration: 0.16, ease: 'power2.out' });
-    setHIdx(i); setActiveEv(ev);
+    if (dot) gsap.to(dot, { scale: ev.type === 'goal' ? 1.45 : 1.6, duration: 0.14, ease: 'power2.out' });
+    setActiveEv(ev);
   }
   function leaveDot(i) {
     const dot = dotsRef.current[i];
-    if (dot) gsap.to(dot, { scale: 1, y: 0, duration: 0.16, ease: 'power2.in' });
-    setHIdx(null); setActiveEv(null);
+    if (dot) gsap.to(dot, { scale: 1, duration: 0.14, ease: 'power2.in' });
+    setActiveEv(null);
   }
 
-  const goals = events.filter(e => e.type === 'goal');
-
   return (
-    <div style={{ padding: '1.1rem 2.5rem 0.9rem', borderBottom: '1px solid #1c1c1c', background: '#090909' }}>
-      {/* Legend */}
-      <div style={{ display: 'flex', gap: '1.1rem', marginBottom: '0.65rem', alignItems: 'center' }}>
-        {Object.entries(EVT_COLORS).map(([type, c]) => (
-          <div key={type} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: c }} />
-            <span style={{ fontSize: '0.42rem', color: '#555', fontFamily: 'Inter', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-              {{ goal:'Gol', chance:'Remate', pressing:'Pressing', tactical:'Táctica' }[type]}
-            </span>
-          </div>
-        ))}
-        <div style={{ flex: 1 }} />
-        <span style={{ fontSize: '0.42rem', color: '#2a2a2a', fontFamily: 'JetBrains Mono', letterSpacing: '0.1em' }}>1T ← HT → 2T</span>
-      </div>
+    <div style={{ padding: '0.9rem 2.5rem 1rem', borderBottom: '1px solid #1c1c1c', background: '#090909' }}>
 
-      {/* Timeline track */}
-      <div style={{ position: 'relative', height: 48, marginBottom: '0.65rem' }}>
-        {/* Background gradient showing home/away zones */}
-        <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: 2, background: '#161616', transform: 'translateY(-50%)', borderRadius: 2 }} />
+      {/* ── Track area ── */}
+      <div style={{ position: 'relative', height: 72 }}>
+
+        {/* Home / Away zone fills */}
+        <div style={{ position: 'absolute', top: '50%', left: 0, width: '50%', height: 32, transform: 'translateY(-50%)', background: `linear-gradient(90deg, transparent 0%, ${homeColor}0e 100%)`, pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', top: '50%', right: 0, width: '50%', height: 32, transform: 'translateY(-50%)', background: `linear-gradient(270deg, transparent 0%, ${awayColor}0e 100%)`, pointerEvents: 'none' }} />
+
+        {/* Track */}
+        <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: 2, background: '#1a1a1a', transform: 'translateY(-50%)', borderRadius: 2 }} />
         <div ref={trackRef} style={{
           position: 'absolute', top: '50%', left: 0, right: 0, height: 2,
-          background: `linear-gradient(90deg, ${homeColor}55 0%, #2a2a2a 42%, #2a2a2a 58%, ${awayColor}55 100%)`,
+          background: `linear-gradient(90deg, ${homeColor}60 0%, #303030 43%, #303030 57%, ${awayColor}60 100%)`,
           transform: 'translateY(-50%)', borderRadius: 2,
         }} />
 
-        {/* Minute markers */}
+        {/* Minute ticks at bottom */}
         {[0, 15, 30, 45, 60, 75, 90].map(t => (
-          <div key={t} style={{ position: 'absolute', left: `${(t / 90) * 100}%`, top: 0, bottom: 0, transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', pointerEvents: 'none' }}>
-            <div style={{ width: 1, height: t % 45 === 0 ? 10 : 7, background: t === 45 ? '#333' : '#1e1e1e' }} />
-            <span style={{ fontSize: '0.38rem', color: t === 45 ? '#3a3a3a' : '#282828', fontFamily: 'JetBrains Mono' }}>{t}'</span>
+          <div key={t} style={{ position: 'absolute', left: `${(t / 90) * 100}%`, bottom: 0, transform: 'translateX(-50%)', textAlign: 'center', pointerEvents: 'none' }}>
+            <span style={{ fontSize: '0.38rem', color: t === 45 ? '#3a3a3a' : '#252525', fontFamily: 'JetBrains Mono', display: 'block' }}>{t}'</span>
           </div>
         ))}
 
-        {/* Half-time line */}
-        <div ref={halfRef} style={{
-          position: 'absolute', left: '50%', top: 6, bottom: 6,
-          width: 1, background: '#252525', transform: 'translateX(-50%)',
-        }} />
+        {/* Half-time divider */}
+        <div ref={halfRef} style={{ position: 'absolute', left: '50%', top: '15%', bottom: '20%', width: 1, background: '#282828', transform: 'translateX(-50%)' }}>
+          <span style={{ position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', fontSize: '0.36rem', color: '#333', fontFamily: 'Inter', whiteSpace: 'nowrap', letterSpacing: '0.08em' }}>HT</span>
+        </div>
 
-        {/* Team zone watermarks */}
-        <span style={{ position: 'absolute', left: '22%', top: '50%', transform: 'translateY(-50%)', fontSize: '0.42rem', color: homeColor + '30', fontFamily: 'Bebas Neue, sans-serif', letterSpacing: '0.12em', pointerEvents: 'none' }}>
-          {match.homeTeam.split(' ').slice(-1)[0].toUpperCase()}
+        {/* Team watermarks */}
+        <span style={{ position: 'absolute', left: '23%', top: '50%', transform: 'translate(-50%, -50%)', fontSize: '0.44rem', color: homeColor + '28', fontFamily: 'Bebas Neue, sans-serif', letterSpacing: '0.14em', pointerEvents: 'none' }}>
+          {match.homeTeam.split(' ').pop().toUpperCase()}
         </span>
-        <span style={{ position: 'absolute', right: '22%', top: '50%', transform: 'translateY(-50%)', fontSize: '0.42rem', color: awayColor + '30', fontFamily: 'Bebas Neue, sans-serif', letterSpacing: '0.12em', pointerEvents: 'none' }}>
-          {match.awayTeam.split(' ').slice(-1)[0].toUpperCase()}
+        <span style={{ position: 'absolute', right: '23%', top: '50%', transform: 'translate(50%, -50%)', fontSize: '0.44rem', color: awayColor + '28', fontFamily: 'Bebas Neue, sans-serif', letterSpacing: '0.14em', pointerEvents: 'none' }}>
+          {match.awayTeam.split(' ').pop().toUpperCase()}
         </span>
 
-        {/* Event dots */}
+        {/* All event dots */}
         {events.map((ev, i) => {
           const c = EVT_COLORS[ev.type] || '#444';
           const isGoal = ev.type === 'goal';
+          const score = isGoal ? ev.description.match(/(\d+[-–]\d+)/)?.[1] : null;
           return (
-            <div
-              key={i}
-              ref={el => { dotsRef.current[i] = el; }}
-              onMouseEnter={() => enterDot(i, ev)}
-              onMouseLeave={() => leaveDot(i)}
-              style={{
-                position: 'absolute', left: `${(ev.minute / 90) * 100}%`, top: '50%',
-                transform: 'translate(-50%, -50%)',
-                width: isGoal ? 18 : 10, height: isGoal ? 18 : 10,
-                borderRadius: '50%', background: c, cursor: 'pointer',
-                border: `2px solid ${c}88`, zIndex: isGoal ? 3 : 2,
-              }}
-            />
+            <div key={i} style={{
+              position: 'absolute',
+              left: `${(ev.minute / 90) * 100}%`,
+              top: isGoal ? 'calc(50% - 20px)' : '50%',
+              transform: 'translate(-50%, -50%)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+              zIndex: isGoal ? 4 : 2,
+            }}>
+              {/* Score label above goal dots */}
+              {isGoal && score && (
+                <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '0.58rem', color: '#00C853', letterSpacing: '0.06em', whiteSpace: 'nowrap', lineHeight: 1 }}>
+                  {score}
+                </span>
+              )}
+              <div
+                ref={el => { dotsRef.current[i] = el; }}
+                onMouseEnter={() => enterDot(i, ev)}
+                onMouseLeave={() => leaveDot(i)}
+                style={{
+                  width: isGoal ? 17 : 9, height: isGoal ? 17 : 9,
+                  borderRadius: '50%', background: c,
+                  border: `2px solid ${c}77`, cursor: 'pointer',
+                }}
+              />
+              {/* Connector line from goal dot to track */}
+              {isGoal && <div style={{ width: 1, height: 6, background: '#00C85344', marginTop: 1 }} />}
+            </div>
           );
         })}
+      </div>
 
-        {/* Hover tooltip */}
-        {activeEv && (
-          <div style={{
-            position: 'absolute',
-            left: `${(activeEv.minute / 90) * 100}%`,
-            bottom: '100%', marginBottom: 6,
-            transform: 'translateX(-50%)',
-            background: '#111', border: `1px solid ${EVT_COLORS[activeEv.type] || '#333'}55`,
-            borderRadius: 6, padding: '0.35rem 0.65rem',
-            whiteSpace: 'nowrap', zIndex: 20, pointerEvents: 'none',
-          }}>
-            <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '0.88rem', color: EVT_COLORS[activeEv.type] || '#777', letterSpacing: '0.06em' }}>
-              {activeEv.minute}'
-            </div>
-            <div style={{ fontSize: '0.58rem', color: '#ccc', fontFamily: 'Inter', maxWidth: 220 }}>
-              {activeEv.description}
-            </div>
+      {/* ── Status bar — replaces floating tooltip ── */}
+      <div style={{ height: 26, display: 'flex', alignItems: 'center', padding: '0 0.1rem', borderBottom: '1px solid #111', marginBottom: '0.85rem' }}>
+        {activeEv ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '0.95rem', color: EVT_COLORS[activeEv.type] || '#666', letterSpacing: '0.04em' }}>{activeEv.minute}'</span>
+            <div style={{ width: 1, height: 14, background: '#2a2a2a' }} />
+            <span style={{ fontSize: '0.44rem', color: EVT_COLORS[activeEv.type] || '#666', fontFamily: 'Inter', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+              {{ goal:'Gol', chance:'Remate', pressing:'Pressing', tactical:'Táctica' }[activeEv.type] || activeEv.type}
+            </span>
+            <div style={{ width: 1, height: 14, background: '#2a2a2a' }} />
+            <span style={{ fontSize: '0.65rem', color: '#aaa', fontFamily: 'Inter' }}>{activeEv.description.replace(/.*\d+[-–]\d+\s*[—–\-]+\s*/, '').trim()}</span>
           </div>
+        ) : (
+          <span style={{ fontSize: '0.4rem', color: '#252525', fontFamily: 'Inter', letterSpacing: '0.14em' }}>
+            PASÁ EL CURSOR SOBRE UN EVENTO
+          </span>
         )}
       </div>
 
-      {/* Goal cards */}
+      {/* ── Goal cards — centered ── */}
       {goals.length > 0 && (
-        <div ref={cardsRef} style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-          {goals.map((ev, i) => (
-            <GoalCard key={i} ev={ev} color={homeColor} />
-          ))}
+        <div ref={cardsRef} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+          {goals.map((ev, i) => <GoalCard key={i} ev={ev} />)}
         </div>
       )}
     </div>
@@ -362,41 +363,15 @@ export default function CoachDashboard({ match, onPlayerSelect, onViewChange }) 
   const runBallAnim = useCallback(() => {
     const ball = ballRef.current;
     if (!ball) return;
-    const homeWins = match.score.home >= match.score.away;
-    const targetX  = homeWins ? -130 : 130;
-    const flashEl  = homeWins ? flashHomeRef.current : flashAwayRef.current;
-
-    const tl = gsap.timeline();
-    tl
-      .set(ball, { opacity: 0, scale: 0, x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1 })
-      .to(ball, { opacity: 1, scale: 1, duration: 0.2, ease: 'back.out(2.2)' })
-      .addLabel('arc')
-      // Arc: x + rotation in parallel with y up/down
-      .to(ball, { x: targetX, rotation: 720, duration: 0.68, ease: 'power1.inOut' }, 'arc')
-      .to(ball, { y: -58, duration: 0.34, ease: 'power2.out' }, 'arc')
-      .to(ball, { y: 0,   duration: 0.34, ease: 'power2.in'  }, 'arc+=0.34')
-      .addLabel('land', 'arc+=0.68')
-      // Bounce sequence — squish on impact then smaller bounces
-      .to(ball, { y: -28, scaleX: 0.9,  scaleY: 1.15, duration: 0.15, ease: 'power2.out' }, 'land')
-      .to(ball, { y:   0, scaleX: 1.25, scaleY: 0.75, duration: 0.12, ease: 'power2.in' })
-      .to(ball, { y: -13, scaleX: 1,    scaleY: 1,    duration: 0.11, ease: 'power2.out' })
-      .to(ball, { y:   0,                              duration: 0.09, ease: 'power2.in' })
-      .to(ball, { y:  -5,                              duration: 0.07, ease: 'power2.out' })
-      .to(ball, { y:   0,                              duration: 0.06, ease: 'power2.in' })
-      // Flash burst at score number
-      .add(() => {
-        if (flashEl) gsap.fromTo(flashEl,
-          { scale: 0.3, opacity: 1 },
-          { scale: 3.8, opacity: 0, duration: 0.55, ease: 'power1.out' }
-        );
-      }, '-=0.08')
-      // Score digits flash-scale
-      .to(homeWins ? homeRef.current : awayRef.current,
-        { scale: 1.2, duration: 0.1, ease: 'power2.out', yoyo: true, repeat: 1 }, '-=0.08'
-      )
-      // Ball settle + fade
-      .to(ball, { opacity: 0, scale: 0.3, y: 8, duration: 0.28, ease: 'power2.in', delay: 0.45 });
-  }, [match]);
+    // Ball floats behind the score as a persistent ambient decoration
+    gsap.set(ball, { opacity: 0, scale: 0, rotation: 0 });
+    gsap.to(ball, { opacity: 1, scale: 1, duration: 0.6, ease: 'power2.out', delay: 0.5 });
+    // Continuous slow rotation
+    gsap.to(ball, { rotation: 360, duration: 14, ease: 'none', repeat: -1, delay: 0.5 });
+    // Gentle floating pulse (scale + y drift)
+    gsap.to(ball, { y: -12, duration: 3.2, ease: 'sine.inOut', yoyo: true, repeat: -1, delay: 0.5 });
+    gsap.to(ball, { scale: 1.06, duration: 4.5, ease: 'sine.inOut', yoyo: true, repeat: -1, delay: 0.5 });
+  }, []);
 
   useEffect(() => {
     // Hero fade-in — use fromTo so final state is always explicit
@@ -413,8 +388,8 @@ export default function CoachDashboard({ match, onPlayerSelect, onViewChange }) 
     gsap.to(ao, {
       v: match.score.away, duration: 0.8, delay: 0.12, ease: 'power2.out', overwrite: true,
       onUpdate: () => { if (awayRef.current) awayRef.current.textContent = Math.round(ao.v); },
-      onComplete: () => setTimeout(runBallAnim, 150), // ball launches after scores settle
     });
+    runBallAnim();
     // Body slide in
     if (bodyRef.current) {
       gsap.fromTo(
@@ -423,7 +398,7 @@ export default function CoachDashboard({ match, onPlayerSelect, onViewChange }) 
         { y: 0, stagger: 0.07, duration: 0.4, ease: 'power2.out', overwrite: true }
       );
     }
-  }, [match, runBallAnim]);
+  }, [match]);
 
   useEffect(() => {
     setAiText(''); setAiDone(false);
@@ -481,33 +456,27 @@ export default function CoachDashboard({ match, onPlayerSelect, onViewChange }) 
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', position: 'relative' }}>
-            {/* ── Ball ── */}
+            {/* ── Ambient ball — decorative background, floats behind score ── */}
             <div ref={ballRef} style={{
               position: 'absolute', left: '50%', top: '50%',
-              width: 26, height: 26, borderRadius: '50%',
-              transform: 'translate(-50%, -50%)',
-              background: 'radial-gradient(circle at 36% 32%, #ffffff 0%, #cccccc 30%, #666 65%, #111 100%)',
-              boxShadow: '0 3px 10px rgba(0,0,0,0.9), inset 0 -2px 4px rgba(0,0,0,0.5)',
-              opacity: 0, zIndex: 20, pointerEvents: 'none',
-            }} />
-            {/* ── Flash overlays at each score number ── */}
-            <div ref={flashHomeRef} style={{
-              position: 'absolute', left: 'calc(50% - 120px)', top: '50%',
               width: 110, height: 110, borderRadius: '50%',
               transform: 'translate(-50%, -50%)',
-              background: `radial-gradient(circle, ${homeColor}cc 0%, ${homeColor}55 35%, transparent 70%)`,
-              opacity: 0, pointerEvents: 'none', zIndex: 6,
-            }} />
-            <div ref={flashAwayRef} style={{
-              position: 'absolute', left: 'calc(50% + 120px)', top: '50%',
-              width: 110, height: 110, borderRadius: '50%',
-              transform: 'translate(-50%, -50%)',
-              background: `radial-gradient(circle, ${awayColor}cc 0%, ${awayColor}55 35%, transparent 70%)`,
-              opacity: 0, pointerEvents: 'none', zIndex: 6,
-            }} />
-            <span ref={homeRef} style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 'clamp(4.5rem, 8vw, 6.5rem)', color: '#fff', lineHeight: 0.9, display: 'inline-block' }}>0</span>
-            <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2.5rem', color: '#222', lineHeight: 1 }}>—</span>
-            <span ref={awayRef} style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 'clamp(4.5rem, 8vw, 6.5rem)', color: '#fff', lineHeight: 0.9, display: 'inline-block' }}>0</span>
+              background: 'radial-gradient(circle at 38% 34%, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 40%, transparent 70%)',
+              border: '1px solid rgba(255,255,255,0.06)',
+              boxShadow: 'inset 0 0 30px rgba(255,255,255,0.03)',
+              opacity: 0, zIndex: 0, pointerEvents: 'none',
+            }}>
+              {/* Ball panel lines */}
+              <svg viewBox="0 0 110 110" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.18 }}>
+                <circle cx="55" cy="55" r="52" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1" />
+                <path d="M55 3 C30 20 20 50 30 75 C40 95 70 100 82 85 C95 68 92 38 75 20 Z" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
+                <path d="M3 55 C18 35 45 25 68 32 C88 40 95 65 85 82 C70 98 40 97 22 82 Z" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
+                <circle cx="55" cy="55" r="8" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1" />
+              </svg>
+            </div>
+            <span ref={homeRef} style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 'clamp(4.5rem, 8vw, 6.5rem)', color: '#fff', lineHeight: 0.9, display: 'inline-block', position: 'relative', zIndex: 1 }}>0</span>
+            <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2.5rem', color: '#222', lineHeight: 1, position: 'relative', zIndex: 1 }}>—</span>
+            <span ref={awayRef} style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 'clamp(4.5rem, 8vw, 6.5rem)', color: '#fff', lineHeight: 0.9, display: 'inline-block', position: 'relative', zIndex: 1 }}>0</span>
           </div>
           <div style={{ textAlign: 'left', flex: 1 }}>
             <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 'clamp(1.1rem, 2.5vw, 1.8rem)', color: awayColor, letterSpacing: '0.06em' }}>
