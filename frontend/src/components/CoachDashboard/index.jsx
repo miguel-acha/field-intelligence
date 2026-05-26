@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useRef, useMemo, useState, useCallback } from 'react';
 import { gsap } from 'gsap';
 import { getTeamAverages } from '../../data/mockData';
+import { queryAnalyst } from '../../services/claude';
 
 const TEAM_COLORS = {
   'Bayern München': '#E32219', 'Borussia Dortmund': '#F5C518',
@@ -149,11 +150,202 @@ function PerformerRow({ player, rank, onClick }) {
   );
 }
 
+/* ─── Match Timeline ─── */
+const EVT_COLORS = { goal: '#00C853', chance: '#2979FF', pressing: '#FF9800', tactical: '#555' };
+const hexRgb = h => { const c = h.replace('#',''); return `${parseInt(c.slice(0,2),16)},${parseInt(c.slice(2,4),16)},${parseInt(c.slice(4,6),16)}`; };
+
+function GoalCard({ ev, color }) {
+  const ref = useRef(null);
+  const rgb = hexRgb(color);
+  useEffect(() => {
+    if (!ref.current) return;
+    const on = () => gsap.to(ref.current, { scale: 1.04, duration: 0.12 });
+    const off = () => gsap.to(ref.current, { scale: 1, duration: 0.12 });
+    ref.current.addEventListener('mouseenter', on);
+    ref.current.addEventListener('mouseleave', off);
+    return () => { ref.current?.removeEventListener('mouseenter', on); ref.current?.removeEventListener('mouseleave', off); };
+  }, []);
+  return (
+    <div ref={ref} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.22rem 0.65rem', background: `rgba(0,200,83,0.06)`, border: '1px solid rgba(0,200,83,0.2)', borderRadius: 4, cursor: 'default' }}>
+      <svg width="7" height="7" viewBox="0 0 7 7"><circle cx="3.5" cy="3.5" r="3" fill="#00C853" /></svg>
+      <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '0.85rem', color: '#00C853' }}>{ev.minute}'</span>
+      <span style={{ fontSize: '0.62rem', color: '#999', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'Inter' }}>{ev.description}</span>
+    </div>
+  );
+}
+
+function MatchTimeline({ match, homeColor, awayColor }) {
+  const trackRef   = useRef(null);
+  const halfRef    = useRef(null);
+  const dotsRef    = useRef([]);
+  const cardsRef   = useRef(null);
+  const [activeEv, setActiveEv] = useState(null);
+  const [hIdx, setHIdx]         = useState(null);
+  const events = useMemo(() => match.timeline.slice(0, 14), [match]);
+
+  useEffect(() => {
+    dotsRef.current = dotsRef.current.slice(0, events.length);
+
+    // 1. Track draws left→right
+    gsap.fromTo(trackRef.current,
+      { scaleX: 0, transformOrigin: 'left center' },
+      { scaleX: 1, duration: 1.0, ease: 'power3.out', overwrite: true }
+    );
+    // 2. Half-time line drops
+    gsap.fromTo(halfRef.current,
+      { scaleY: 0, transformOrigin: 'top center' },
+      { scaleY: 1, duration: 0.5, delay: 0.55, ease: 'power2.out', overwrite: true }
+    );
+    // 3. Dots pop in with stagger
+    const dots = dotsRef.current.filter(Boolean);
+    gsap.fromTo(dots,
+      { scale: 0, transformOrigin: 'center center' },
+      { scale: 1, stagger: { amount: 0.7, from: 'start', ease: 'none' }, duration: 0.35, ease: 'back.out(1.9)', delay: 0.35, overwrite: true }
+    );
+    // 4. Goal dots: continuous glow pulse
+    events.forEach((ev, i) => {
+      if (ev.type !== 'goal' || !dotsRef.current[i]) return;
+      gsap.to(dotsRef.current[i], {
+        boxShadow: `0 0 18px #00C85399, 0 0 36px #00C85333`,
+        repeat: -1, yoyo: true, duration: 1.1, ease: 'sine.inOut', delay: 0.9 + i * 0.08,
+      });
+    });
+    // 5. Goal cards slide up
+    if (cardsRef.current?.children.length) {
+      gsap.fromTo([...cardsRef.current.children],
+        { y: 8, opacity: 0 },
+        { y: 0, opacity: 1, stagger: 0.06, duration: 0.35, ease: 'power2.out', delay: 1.1, overwrite: true }
+      );
+    }
+  }, [match]);
+
+  function enterDot(i, ev) {
+    const dot = dotsRef.current[i];
+    if (dot) gsap.to(dot, { scale: 1.65, y: -5, duration: 0.16, ease: 'power2.out' });
+    setHIdx(i); setActiveEv(ev);
+  }
+  function leaveDot(i) {
+    const dot = dotsRef.current[i];
+    if (dot) gsap.to(dot, { scale: 1, y: 0, duration: 0.16, ease: 'power2.in' });
+    setHIdx(null); setActiveEv(null);
+  }
+
+  const goals = events.filter(e => e.type === 'goal');
+
+  return (
+    <div style={{ padding: '1.1rem 2.5rem 0.9rem', borderBottom: '1px solid #1c1c1c', background: '#090909' }}>
+      {/* Legend */}
+      <div style={{ display: 'flex', gap: '1.1rem', marginBottom: '0.65rem', alignItems: 'center' }}>
+        {Object.entries(EVT_COLORS).map(([type, c]) => (
+          <div key={type} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: c }} />
+            <span style={{ fontSize: '0.42rem', color: '#555', fontFamily: 'Inter', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+              {{ goal:'Gol', chance:'Remate', pressing:'Pressing', tactical:'Táctica' }[type]}
+            </span>
+          </div>
+        ))}
+        <div style={{ flex: 1 }} />
+        <span style={{ fontSize: '0.42rem', color: '#2a2a2a', fontFamily: 'JetBrains Mono', letterSpacing: '0.1em' }}>1T ← HT → 2T</span>
+      </div>
+
+      {/* Timeline track */}
+      <div style={{ position: 'relative', height: 48, marginBottom: '0.65rem' }}>
+        {/* Background gradient showing home/away zones */}
+        <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: 2, background: '#161616', transform: 'translateY(-50%)', borderRadius: 2 }} />
+        <div ref={trackRef} style={{
+          position: 'absolute', top: '50%', left: 0, right: 0, height: 2,
+          background: `linear-gradient(90deg, ${homeColor}55 0%, #2a2a2a 42%, #2a2a2a 58%, ${awayColor}55 100%)`,
+          transform: 'translateY(-50%)', borderRadius: 2,
+        }} />
+
+        {/* Minute markers */}
+        {[0, 15, 30, 45, 60, 75, 90].map(t => (
+          <div key={t} style={{ position: 'absolute', left: `${(t / 90) * 100}%`, top: 0, bottom: 0, transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', pointerEvents: 'none' }}>
+            <div style={{ width: 1, height: t % 45 === 0 ? 10 : 7, background: t === 45 ? '#333' : '#1e1e1e' }} />
+            <span style={{ fontSize: '0.38rem', color: t === 45 ? '#3a3a3a' : '#282828', fontFamily: 'JetBrains Mono' }}>{t}'</span>
+          </div>
+        ))}
+
+        {/* Half-time line */}
+        <div ref={halfRef} style={{
+          position: 'absolute', left: '50%', top: 6, bottom: 6,
+          width: 1, background: '#252525', transform: 'translateX(-50%)',
+        }} />
+
+        {/* Team zone watermarks */}
+        <span style={{ position: 'absolute', left: '22%', top: '50%', transform: 'translateY(-50%)', fontSize: '0.42rem', color: homeColor + '30', fontFamily: 'Bebas Neue, sans-serif', letterSpacing: '0.12em', pointerEvents: 'none' }}>
+          {match.homeTeam.split(' ').slice(-1)[0].toUpperCase()}
+        </span>
+        <span style={{ position: 'absolute', right: '22%', top: '50%', transform: 'translateY(-50%)', fontSize: '0.42rem', color: awayColor + '30', fontFamily: 'Bebas Neue, sans-serif', letterSpacing: '0.12em', pointerEvents: 'none' }}>
+          {match.awayTeam.split(' ').slice(-1)[0].toUpperCase()}
+        </span>
+
+        {/* Event dots */}
+        {events.map((ev, i) => {
+          const c = EVT_COLORS[ev.type] || '#444';
+          const isGoal = ev.type === 'goal';
+          return (
+            <div
+              key={i}
+              ref={el => { dotsRef.current[i] = el; }}
+              onMouseEnter={() => enterDot(i, ev)}
+              onMouseLeave={() => leaveDot(i)}
+              style={{
+                position: 'absolute', left: `${(ev.minute / 90) * 100}%`, top: '50%',
+                transform: 'translate(-50%, -50%)',
+                width: isGoal ? 18 : 10, height: isGoal ? 18 : 10,
+                borderRadius: '50%', background: c, cursor: 'pointer',
+                border: `2px solid ${c}88`, zIndex: isGoal ? 3 : 2,
+              }}
+            />
+          );
+        })}
+
+        {/* Hover tooltip */}
+        {activeEv && (
+          <div style={{
+            position: 'absolute',
+            left: `${(activeEv.minute / 90) * 100}%`,
+            bottom: '100%', marginBottom: 6,
+            transform: 'translateX(-50%)',
+            background: '#111', border: `1px solid ${EVT_COLORS[activeEv.type] || '#333'}55`,
+            borderRadius: 6, padding: '0.35rem 0.65rem',
+            whiteSpace: 'nowrap', zIndex: 20, pointerEvents: 'none',
+          }}>
+            <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '0.88rem', color: EVT_COLORS[activeEv.type] || '#777', letterSpacing: '0.06em' }}>
+              {activeEv.minute}'
+            </div>
+            <div style={{ fontSize: '0.58rem', color: '#ccc', fontFamily: 'Inter', maxWidth: 220 }}>
+              {activeEv.description}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Goal cards */}
+      {goals.length > 0 && (
+        <div ref={cardsRef} style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+          {goals.map((ev, i) => (
+            <GoalCard key={i} ev={ev} color={homeColor} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CoachDashboard({ match, onPlayerSelect, onViewChange }) {
   const heroRef   = useRef(null);
   const homeRef   = useRef(null);
   const awayRef   = useRef(null);
   const bodyRef   = useRef(null);
+
+  const [aiText, setAiText]           = useState('');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [aiDone, setAiDone]           = useState(false);
+  const aiScrollRef = useRef(null);
+  const aiSpotRef   = useRef(null);
+  const aiPulseRef  = useRef(null);
 
   const homeTop      = useMemo(() => getTopPerformers(match.players, match.homeTeam), [match]);
   const awayTop      = useMemo(() => getTopPerformers(match.players, match.awayTeam), [match]);
@@ -189,6 +381,38 @@ export default function CoachDashboard({ match, onPlayerSelect, onViewChange }) 
       );
     }
   }, [match]);
+
+  useEffect(() => {
+    setAiText(''); setAiDone(false);
+  }, [match]);
+
+  useEffect(() => {
+    if (aiScrollRef.current && aiText) {
+      gsap.to(aiScrollRef.current, { scrollTop: aiScrollRef.current.scrollHeight, duration: 0.3, ease: 'power2.out', overwrite: true });
+    }
+  }, [aiText]);
+
+  useEffect(() => {
+    if (!aiSpotRef.current) return;
+    if (isAnalyzing) {
+      aiPulseRef.current = gsap.to(aiSpotRef.current, { boxShadow: '0 0 50px rgba(227,34,25,0.12)', repeat: -1, yoyo: true, duration: 1.3, ease: 'sine.inOut' });
+    } else {
+      if (aiPulseRef.current) aiPulseRef.current.kill();
+      gsap.to(aiSpotRef.current, { boxShadow: 'none', duration: 0.4 });
+    }
+  }, [isAnalyzing]);
+
+  const handleMatchAnalyze = useCallback(async () => {
+    if (isAnalyzing) return;
+    setIsAnalyzing(true); setAiText(''); setAiDone(false);
+    const question = `Analiza en profundidad este partido. Explica por qué ${match.score.home > match.score.away ? match.homeTeam : match.awayTeam} ganó, qué factores tácticos y físicos determinaron el resultado, y cuáles fueron los jugadores decisivos según los datos 3D. Sé específico con los KPIs.`;
+    try {
+      await queryAnalyst(question, match, chunk => setAiText(prev => prev + chunk));
+      setAiDone(true);
+    } catch {
+      setAiText('Error al conectar con el servicio de IA.');
+    } finally { setIsAnalyzing(false); }
+  }, [match, isAnalyzing]);
 
   function go(p) { onPlayerSelect(p); onViewChange('player'); }
 
@@ -233,39 +457,48 @@ export default function CoachDashboard({ match, onPlayerSelect, onViewChange }) 
         </div>
       </div>
 
-      {/* ══ TIMELINE — right below score ══ */}
-      <div style={{ padding: '1rem 2.5rem', borderBottom: '1px solid #1c1c1c', background: '#090909' }}>
-        <div style={{ position: 'relative', height: 32 }}>
-          <div style={{ position: 'absolute', top: 8, left: 0, right: 0, height: 1, background: '#1c1c1c' }} />
-          {[0, 15, 30, 45, 60, 75, 90].map(t => (
-            <div key={t} style={{ position: 'absolute', left: `${(t / 90) * 100}%`, top: 0, transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-              <div style={{ width: 1, height: 10, background: '#252525' }} />
-              <span style={{ fontSize: '0.44rem', color: '#444', fontFamily: 'JetBrains Mono' }}>{t}'</span>
-            </div>
-          ))}
-          {match.timeline.slice(0, 12).map((ev, i) => {
-            const c = { goal: '#00C853', chance: '#2979FF', pressing: '#FF9800', tactical: '#555' }[ev.type] || '#444';
-            const isGoal = ev.type === 'goal';
-            return (
-              <div key={i} title={`${ev.minute}' — ${ev.description}`} style={{
-                position: 'absolute', left: `${(ev.minute / 90) * 100}%`, top: isGoal ? 0 : 3,
-                transform: 'translateX(-50%)',
-                width: isGoal ? 16 : 8, height: isGoal ? 16 : 8,
-                borderRadius: '50%', background: c,
-                boxShadow: isGoal ? `0 0 12px ${c}88` : 'none',
-                border: `1px solid ${c}`, zIndex: isGoal ? 2 : 1, cursor: 'default',
-              }} />
-            );
-          })}
+      {/* ══ TIMELINE — animated match timeline ══ */}
+      <MatchTimeline match={match} homeColor={homeColor} awayColor={awayColor} />
+
+      {/* ══ AI MATCH ANALYSIS ══ */}
+      <div ref={aiSpotRef} style={{
+        padding: '1.75rem 2.5rem',
+        borderBottom: '1px solid #1c1c1c',
+        background: 'linear-gradient(180deg, rgba(227,34,25,0.03) 0%, transparent 70%)',
+        position: 'relative', overflow: 'hidden',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: aiText || isAnalyzing ? '1.25rem' : 0, gap: '1rem' }}>
+          <div>
+            <div style={{ fontSize: '0.46rem', color: '#E32219', letterSpacing: '0.2em', fontFamily: 'Inter', fontWeight: 700, marginBottom: '0.25rem' }}>OPENCAMBA AI</div>
+            <h3 style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.5rem', letterSpacing: '0.06em', color: '#fff', margin: 0, lineHeight: 1 }}>
+              Análisis del Partido
+            </h3>
+          </div>
+          <button className="btn-primary" onClick={handleMatchAnalyze} disabled={isAnalyzing} style={{ flexShrink: 0 }}>
+            {isAnalyzing ? (
+              <>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 1s linear infinite' }}>
+                  <path d="M21 12a9 9 0 11-6.219-8.56" />
+                </svg>
+                Analizando...
+              </>
+            ) : aiDone ? '↻ Re-analizar' : '✦ Analizar con IA'}
+          </button>
         </div>
-        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
-          {match.timeline.filter(ev => ev.type === 'goal').slice(0, 4).map((ev, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.18rem 0.5rem', background: 'rgba(0,200,83,0.06)', border: '1px solid rgba(0,200,83,0.16)', borderRadius: 4 }}>
-              <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '0.78rem', color: '#00C853' }}>{ev.minute}'</span>
-              <span style={{ fontSize: '0.6rem', color: '#888', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.description}</span>
-            </div>
-          ))}
-        </div>
+
+        {!aiText && !isAnalyzing && (
+          <p style={{ fontSize: '0.72rem', color: '#333', margin: 0, fontFamily: 'Inter' }}>
+            Presioná <strong style={{ color: '#E32219' }}>Analizar con IA</strong> para el informe táctico completo del partido — factores determinantes, jugadores clave y datos 3D.
+          </p>
+        )}
+
+        {(aiText || isAnalyzing) && (
+          <div ref={aiScrollRef} style={{ background: 'rgba(0,0,0,0.3)', borderRadius: 8, padding: '1.1rem 1.4rem', borderLeft: '3px solid #E32219', maxHeight: 200, overflowY: 'auto' }}>
+            <p style={{ fontFamily: 'Inter', fontSize: '0.87rem', lineHeight: 1.85, color: '#ccc', margin: 0, whiteSpace: 'pre-wrap' }}>
+              {aiText}{isAnalyzing && <span className="cursor-blink" />}
+            </p>
+          </div>
+        )}
       </div>
 
       <div ref={bodyRef}>

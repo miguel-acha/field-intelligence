@@ -56,6 +56,81 @@ function ScatterTooltip({ active, payload }) {
   return null;
 }
 
+// ---- Reusable NL Query Panel ----
+const SUGGESTED_QUERIES = [
+  '¿Qué jugador tuvo más fatiga en el segundo tiempo?',
+  'Who had the highest Sprint Value Score?',
+  '¿Cuál fue el Scan Rate más alto del partido?',
+  '¿Qué portero tuvo el mejor Body Readiness Index?',
+];
+
+function NLQueryPanel({ nlQuery, setNlQuery, handleQuery, isQuerying, nlResponse, queryError, queryDone, nlSpotlightRef }) {
+  return (
+    <div ref={nlSpotlightRef} className="ai-spotlight">
+      <div style={{ marginBottom: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div>
+          <div style={{ fontSize: '0.48rem', color: '#E32219', letterSpacing: '0.2em', fontFamily: 'Inter', fontWeight: 700, marginBottom: '0.2rem' }}>OPENCAMBA AI</div>
+          <h3 style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.4rem', letterSpacing: '0.06em', color: '#fff', margin: 0, lineHeight: 1 }}>
+            IA Analista — Natural Language Query
+          </h3>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.65rem' }}>
+        <input
+          className="input-field"
+          type="text"
+          placeholder="¿Qué jugador tuvo más fatiga en el segundo tiempo?"
+          value={nlQuery}
+          onChange={e => setNlQuery(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleQuery()}
+          style={{ flex: 1 }}
+        />
+        <button onClick={handleQuery} disabled={isQuerying || !nlQuery.trim()} className="btn-primary" style={{ flexShrink: 0 }}>
+          {isQuerying ? (
+            <>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 1s linear infinite' }}>
+                <path d="M21 12a9 9 0 11-6.219-8.56" />
+              </svg>
+              Consultando...
+            </>
+          ) : '✦ Consultar'}
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', marginBottom: (nlResponse || queryError) ? '0.85rem' : 0 }}>
+        {SUGGESTED_QUERIES.map(q => (
+          <button key={q} onClick={() => setNlQuery(q)} style={{
+            background: 'transparent', border: '1px solid #222', borderRadius: 6,
+            padding: '0.22rem 0.55rem', cursor: 'pointer', color: '#666',
+            fontSize: '0.65rem', fontFamily: 'Inter', transition: 'all 0.15s',
+          }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#E32219'; e.currentTarget.style.color = '#E32219'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#222'; e.currentTarget.style.color = '#666'; }}
+          >
+            {q.length > 42 ? q.substring(0, 42) + '…' : q}
+          </button>
+        ))}
+      </div>
+
+      {queryError && (
+        <div style={{ padding: '0.65rem 1rem', background: 'rgba(227,34,25,0.06)', border: '1px solid rgba(227,34,25,0.2)', borderRadius: 8, fontSize: '0.8rem', color: '#E32219' }}>
+          {queryError}
+        </div>
+      )}
+
+      {(nlResponse || isQuerying) && (
+        <div style={{ background: 'rgba(0,0,0,0.25)', borderRadius: 8, padding: '1rem 1.25rem', borderLeft: '3px solid #E32219', marginTop: '0.65rem' }}>
+          <div style={{ fontSize: '0.58rem', color: '#555', marginBottom: '0.6rem', fontFamily: 'Inter' }}>Q: {nlQuery}</div>
+          <p style={{ fontFamily: 'Inter', fontSize: '0.9rem', lineHeight: 1.8, color: '#ddd', margin: 0, whiteSpace: 'pre-wrap' }}>
+            {nlResponse}{isQuerying && <span className="cursor-blink" />}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---- Filter pill button ----
 function FilterPill({ label, value, options, onChange }) {
   return (
@@ -88,9 +163,9 @@ export default function AnalystMode({ match, onPlayerSelect, onViewChange }) {
   const containerRef = useRef(null);
   const [teamFilter, setTeamFilter] = useState('all');
   const [posFilter, setPosFilter] = useState('all');
-  const [xMetric, setXMetric] = useState('spatialAwareness');
+  const [xMetric, setXMetric] = useState('sprintValueScore');
   const [yMetric, setYMetric] = useState('scanRate');
-  const [sortKey, setSortKey] = useState('spatialAwareness');
+  const [sortKey, setSortKey] = useState('sprintValueScore');
   const [sortDir, setSortDir] = useState('desc');
   const [nlQuery, setNlQuery] = useState('');
   const [nlResponse, setNlResponse] = useState('');
@@ -151,6 +226,22 @@ export default function AnalystMode({ match, onPlayerSelect, onViewChange }) {
       data: scatterData.filter(p => p.team === team),
     }));
   }, [scatterData, teams]);
+
+  const scatterDomainX = useMemo(() => {
+    const vals = scatterData.map(d => d.x).filter(v => v != null && !isNaN(v));
+    if (!vals.length) return ['auto', 'auto'];
+    const min = Math.min(...vals), max = Math.max(...vals);
+    const pad = Math.max((max - min) * 0.15, 0.5);
+    return [+(min - pad).toFixed(1), +(max + pad).toFixed(1)];
+  }, [scatterData]);
+
+  const scatterDomainY = useMemo(() => {
+    const vals = scatterData.map(d => d.y).filter(v => v != null && !isNaN(v));
+    if (!vals.length) return ['auto', 'auto'];
+    const min = Math.min(...vals), max = Math.max(...vals);
+    const pad = Math.max((max - min) * 0.15, 0.5);
+    return [+(min - pad).toFixed(1), +(max + pad).toFixed(1)];
+  }, [scatterData]);
 
   function handleSort(key) {
     if (sortKey === key) {
@@ -220,6 +311,14 @@ export default function AnalystMode({ match, onPlayerSelect, onViewChange }) {
   return (
     <div ref={containerRef} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: '1.25rem' }}>
 
+      {/* ---- NL QUERY — TOP ---- */}
+      <NLQueryPanel
+        nlQuery={nlQuery} setNlQuery={setNlQuery}
+        handleQuery={handleQuery} isQuerying={isQuerying}
+        nlResponse={nlResponse} queryError={queryError} queryDone={queryDone}
+        nlSpotlightRef={null}
+      />
+
       {/* ---- HORIZONTAL FILTER BAR ---- */}
       <div className="card" style={{ padding: '0.75rem 1.25rem' }}>
         <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -277,12 +376,14 @@ export default function AnalystMode({ match, onPlayerSelect, onViewChange }) {
             <CartesianGrid stroke="#1a1a1a" strokeDasharray="4 4" />
             <XAxis
               type="number" dataKey="x" name={xMeta.label}
+              domain={scatterDomainX}
               tick={{ fill: '#666', fontSize: 10, fontFamily: 'JetBrains Mono, monospace' }}
               stroke="#2a2a2a"
               label={{ value: xMeta.label, position: 'insideBottom', offset: -15, fill: '#555', fontSize: 10 }}
             />
             <YAxis
               type="number" dataKey="y" name={yMeta.label}
+              domain={scatterDomainY}
               tick={{ fill: '#666', fontSize: 10, fontFamily: 'JetBrains Mono, monospace' }}
               stroke="#2a2a2a"
               label={{ value: yMeta.label, angle: -90, position: 'insideLeft', offset: 10, fill: '#555', fontSize: 10 }}
@@ -388,118 +489,13 @@ export default function AnalystMode({ match, onPlayerSelect, onViewChange }) {
         </table>
       </div>
 
-      {/* ---- NATURAL LANGUAGE QUERY — AI Spotlight ---- */}
-      <div ref={nlSpotlightRef} className="ai-spotlight">
-        <div style={{ marginBottom: '1rem' }}>
-          <h3 style={{
-            fontFamily: 'Inter', fontWeight: 700,
-            fontSize: '1.05rem', color: 'var(--text-primary)', marginBottom: '0.2rem',
-          }}>
-            Natural Language Query — IA Analista
-          </h3>
-          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>
-            Preguntá en español o inglés sobre cualquier dato del partido
-          </p>
-        </div>
-
-        <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.75rem' }}>
-          <input
-            className="input-field"
-            type="text"
-            placeholder="¿Qué jugador tuvo más fatiga en el segundo tiempo?"
-            value={nlQuery}
-            onChange={e => setNlQuery(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleQuery()}
-            style={{ flex: 1 }}
-          />
-          <button
-            onClick={handleQuery}
-            disabled={isQuerying || !nlQuery.trim()}
-            className="btn-primary"
-            style={{ flexShrink: 0 }}
-          >
-            {isQuerying ? (
-              <>
-                <svg
-                  width="13" height="13" viewBox="0 0 24 24"
-                  fill="none" stroke="currentColor" strokeWidth="2.5"
-                  style={{ animation: 'spin 1s linear infinite' }}
-                >
-                  <path d="M21 12a9 9 0 11-6.219-8.56" />
-                </svg>
-                Consultando...
-              </>
-            ) : '✦ Consultar'}
-          </button>
-        </div>
-
-        {/* Suggested queries */}
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: nlResponse || queryError ? '1rem' : 0 }}>
-          {[
-            '¿Qué jugador tuvo más fatiga en el segundo tiempo?',
-            'Who had the highest Sprint Value Score?',
-            '¿Cuál fue el Scan Rate más alto del partido?',
-            '¿Qué portero tuvo el mejor Body Readiness Index?',
-          ].map(q => (
-            <button
-              key={q}
-              onClick={() => setNlQuery(q)}
-              style={{
-                background: 'transparent',
-                border: '1px solid var(--border)',
-                borderRadius: '6px',
-                padding: '0.25rem 0.6rem',
-                cursor: 'pointer',
-                color: 'var(--text-muted)',
-                fontSize: '0.68rem',
-                fontFamily: 'Inter, sans-serif',
-                transition: 'all 0.15s',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#E32219'; e.currentTarget.style.color = '#E32219'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = '#222'; e.currentTarget.style.color = '#777'; }}
-            >
-              {q.length > 42 ? q.substring(0, 42) + '…' : q}
-            </button>
-          ))}
-        </div>
-
-        {queryError && (
-          <div style={{
-            padding: '0.75rem 1rem',
-            background: 'rgba(239,68,68,0.06)',
-            border: '1px solid rgba(239,68,68,0.2)',
-            borderRadius: '8px',
-            fontSize: '0.82rem',
-            color: 'var(--accent-red)',
-          }}>
-            ⚠ {queryError}
-          </div>
-        )}
-
-        {(nlResponse || isQuerying) && (
-          <div style={{
-            background: 'rgba(0,0,0,0.25)', borderRadius: '10px',
-            padding: '1.25rem 1.5rem',
-            borderLeft: '3px solid #E32219',
-            marginTop: '0.75rem',
-          }}>
-            <div style={{
-              fontSize: '0.62rem', color: 'var(--text-muted)',
-              marginBottom: '0.75rem', fontFamily: 'Inter',
-            }}>
-              Q: {nlQuery}
-            </div>
-            <p style={{
-              fontFamily: 'Inter', fontSize: '0.92rem',
-              lineHeight: 1.8, color: 'var(--text-primary)',
-              margin: 0, whiteSpace: 'pre-wrap',
-            }}>
-              {nlResponse}
-              {isQuerying && <span className="cursor-blink" />}
-            </p>
-          </div>
-        )}
-      </div>
+      {/* ---- NATURAL LANGUAGE QUERY — Bottom ---- */}
+      <NLQueryPanel
+        nlQuery={nlQuery} setNlQuery={setNlQuery}
+        handleQuery={handleQuery} isQuerying={isQuerying}
+        nlResponse={nlResponse} queryError={queryError} queryDone={queryDone}
+        nlSpotlightRef={nlSpotlightRef}
+      />
 
     </div>
   );

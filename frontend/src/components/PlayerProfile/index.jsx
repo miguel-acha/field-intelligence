@@ -8,7 +8,7 @@ const TEAM_COLORS = {
 };
 const tc = t => TEAM_COLORS[t] || '#E32219';
 
-/* ─── Pitch heatmap (SVG dots) ─── */
+/* ─── Pitch heatmap — Gaussian density with heat colors ─── */
 const POSITION_ZONES = {
   GK:{cx:5,cy:50}, CB:{cx:18,cy:50}, LB:{cx:20,cy:78}, RB:{cx:20,cy:22},
   CDM:{cx:35,cy:50}, CM:{cx:45,cy:50}, LM:{cx:45,cy:75}, RM:{cx:45,cy:25},
@@ -25,29 +25,89 @@ function seededDots(jerseyNumber, position, count = 80) {
     return {
       x: Math.max(2, Math.min(98, zone.cx + Math.cos(angle) * r * spreadX)),
       y: Math.max(2, Math.min(98, zone.cy + Math.sin(angle) * r * spreadY)),
-      opacity: 0.15 + rng() * 0.55,
-      size: 1.2 + rng() * 2.2,
+      weight: 0.4 + rng() * 0.6,
     };
   });
 }
+
+const HEAT_STOPS = [
+  [0.00, [0,   0,   0,   0   ]],
+  [0.12, [10,  0,   60,  0.45]],
+  [0.30, [0,   30,  200, 0.65]],
+  [0.50, [0,   190, 210, 0.78]],
+  [0.65, [0,   210, 60,  0.85]],
+  [0.78, [255, 220, 0,   0.90]],
+  [0.90, [255, 110, 0,   0.95]],
+  [1.00, [255, 20,  0,   1.00]],
+];
+function heatColor(t) {
+  let i = 0;
+  while (i < HEAT_STOPS.length - 2 && HEAT_STOPS[i + 1][0] <= t) i++;
+  const [t0, c0] = HEAT_STOPS[i], [t1, c1] = HEAT_STOPS[i + 1];
+  const f = (t - t0) / (t1 - t0);
+  return [
+    Math.round(c0[0] + f * (c1[0] - c0[0])),
+    Math.round(c0[1] + f * (c1[1] - c0[1])),
+    Math.round(c0[2] + f * (c1[2] - c0[2])),
+    +(c0[3] + f * (c1[3] - c0[3])).toFixed(3),
+  ];
+}
+
 function PitchHeatmap({ player }) {
+  const W = 340, H = 212;
+  const GW = 46, GH = 29;
+  const cellW = W / GW, cellH = H / GH;
+
   const dots = seededDots(player.jerseyNumber, player.position);
-  const W = 340, H = 210;
-  const px = x => (x / 100) * W, py = y => (y / 100) * H;
-  const c = tc(player.team);
+  const grid = Array.from({ length: GH }, () => new Float32Array(GW));
+  const sigma = 3.8, sigma2 = 2 * sigma * sigma, radius = Math.ceil(sigma * 3);
+
+  dots.forEach(dot => {
+    const gx = (dot.x / 100) * GW, gy = (dot.y / 100) * GH;
+    const ixMin = Math.max(0, Math.floor(gx - radius));
+    const ixMax = Math.min(GW - 1, Math.ceil(gx + radius));
+    const iyMin = Math.max(0, Math.floor(gy - radius));
+    const iyMax = Math.min(GH - 1, Math.ceil(gy + radius));
+    for (let iy = iyMin; iy <= iyMax; iy++) {
+      for (let ix = ixMin; ix <= ixMax; ix++) {
+        const dx = ix + 0.5 - gx, dy = iy + 0.5 - gy;
+        grid[iy][ix] += dot.weight * Math.exp(-(dx * dx + dy * dy) / sigma2);
+      }
+    }
+  });
+
+  let maxVal = 0;
+  for (let iy = 0; iy < GH; iy++)
+    for (let ix = 0; ix < GW; ix++)
+      if (grid[iy][ix] > maxVal) maxVal = grid[iy][ix];
+
+  const cells = [];
+  for (let iy = 0; iy < GH; iy++) {
+    for (let ix = 0; ix < GW; ix++) {
+      const v = grid[iy][ix];
+      if (v < maxVal * 0.05) continue;
+      const [r, g, b, a] = heatColor(Math.min(1, v / maxVal));
+      cells.push(
+        <rect key={`${ix}-${iy}`}
+          x={ix * cellW} y={iy * cellH}
+          width={cellW + 0.6} height={cellH + 0.6}
+          fill={`rgba(${r},${g},${b},${a})`}
+        />
+      );
+    }
+  }
+
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', display: 'block', borderRadius: 8 }}>
-      <rect width={W} height={H} fill="#080808" rx="8" />
-      <g stroke={`${c}18`} strokeWidth="0.8" fill="none">
+      <rect width={W} height={H} fill="#060606" rx="8" />
+      {cells}
+      <g stroke="rgba(255,255,255,0.14)" strokeWidth="0.8" fill="none">
         <rect x="6" y="6" width={W - 12} height={H - 12} />
         <line x1={W / 2} y1="6" x2={W / 2} y2={H - 6} />
         <circle cx={W / 2} cy={H / 2} r="26" />
         <rect x="6" y={H * 0.22} width={W * 0.17} height={H * 0.56} />
         <rect x={W - 6 - W * 0.17} y={H * 0.22} width={W * 0.17} height={H * 0.56} />
       </g>
-      {dots.map((d, i) => (
-        <circle key={i} cx={px(d.x)} cy={py(d.y)} r={d.size} fill={c} opacity={d.opacity * 0.7} />
-      ))}
     </svg>
   );
 }
@@ -166,6 +226,7 @@ export default function PlayerProfile({ match, selectedPlayer, onPlayerSelect })
   const headerRef    = useRef(null);
   const kpiRef       = useRef(null);
   const pickerRef    = useRef(null);
+  const aiScrollRef  = useRef(null);
 
   useEffect(() => {
     if (!selectedPlayer) {
@@ -201,6 +262,13 @@ export default function PlayerProfile({ match, selectedPlayer, onPlayerSelect })
       gsap.to(spotlightRef.current, { boxShadow: 'none', duration: 0.4 });
     }
   }, [isAnalyzing]);
+
+  useEffect(() => {
+    if (aiScrollRef.current && aiText) {
+      const el = aiScrollRef.current;
+      gsap.to(el, { scrollTop: el.scrollHeight, duration: 0.3, ease: 'power2.out', overwrite: true });
+    }
+  }, [aiText]);
 
   const handleAnalyze = useCallback(async () => {
     if (!selectedPlayer || isAnalyzing) return;
@@ -289,8 +357,17 @@ export default function PlayerProfile({ match, selectedPlayer, onPlayerSelect })
             {selectedPlayer.name.toUpperCase()}
           </h2>
           <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
-            {selectedPlayer.goals > 0 && <span className="pill pill-green">⚽ {selectedPlayer.goals} gol{selectedPlayer.goals > 1 ? 'es' : ''}</span>}
-            {selectedPlayer.assists > 0 && <span className="pill pill-blue">A {selectedPlayer.assists} asist.</span>}
+            {selectedPlayer.goals > 0 && (
+              <span className="pill pill-green" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3.5" fill="none" stroke="#00C853" strokeWidth="1"/><circle cx="4" cy="4" r="1.2" fill="#00C853"/></svg>
+                {selectedPlayer.goals} GOL{selectedPlayer.goals > 1 ? 'ES' : ''}
+              </span>
+            )}
+            {selectedPlayer.assists > 0 && (
+              <span className="pill pill-blue">
+                {selectedPlayer.assists} ASIST.
+              </span>
+            )}
           </div>
         </div>
 
@@ -357,7 +434,7 @@ export default function PlayerProfile({ match, selectedPlayer, onPlayerSelect })
             </div>
           )}
           {(aiText || isAnalyzing) && (
-            <div style={{ marginTop: '1rem', background: 'rgba(0,0,0,0.35)', borderRadius: 8, padding: '1.25rem 1.5rem', borderLeft: '3px solid #E32219' }}>
+            <div ref={aiScrollRef} style={{ marginTop: '1rem', background: 'rgba(0,0,0,0.35)', borderRadius: 8, padding: '1.25rem 1.5rem', borderLeft: '3px solid #E32219', maxHeight: 220, overflowY: 'auto', scrollBehavior: 'smooth' }}>
               <p style={{ fontFamily: 'Inter', fontSize: '0.88rem', lineHeight: 1.85, color: '#ddd', margin: 0, whiteSpace: 'pre-wrap' }}>
                 {aiText}{isAnalyzing && <span className="cursor-blink" />}
               </p>
@@ -397,11 +474,12 @@ export default function PlayerProfile({ match, selectedPlayer, onPlayerSelect })
         {/* RIGHT — KPIs top, Chemistry + Fatigue bottom */}
         <div style={{ display: 'flex', flexDirection: 'column' }}>
 
-          {/* 3 KPIs in a row */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', flex: 1 }}>
+          {/* 2×2 KPI grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', flex: 1 }}>
             <KPIBlock label="Spatial Awareness" value={selectedPlayer.spatialAwareness} unit="/100"    benchmark={71}  color="#00C853" delay={0}    />
             <KPIBlock label="Scan Rate"          value={selectedPlayer.scanRate}          unit="esc/min" benchmark={3.1} color="#2979FF" delay={0.08} />
             <KPIBlock label="Sprint Value"       value={selectedPlayer.sprintValueScore}  unit="sprints" benchmark={5.2} color="#FF9800" delay={0.16} />
+            <KPIBlock label="Positioning EPA"    value={selectedPlayer.positioningEPA != null ? Math.abs(selectedPlayer.positioningEPA) : selectedPlayer.courtVisionIndex ?? 0} unit="EPA"    benchmark={1.0} color="#E32219" delay={0.24} />
           </div>
 
           {/* Chemistry + Fatigue side by side */}
