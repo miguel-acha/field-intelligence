@@ -15,7 +15,7 @@ const POSITION_ZONES = {
   AM:{cx:60,cy:50}, CAM:{cx:62,cy:50}, LW:{cx:65,cy:78}, RW:{cx:65,cy:22},
   SS:{cx:72,cy:50}, ST:{cx:80,cy:50}, CF:{cx:78,cy:50},
 };
-function seededDots(jerseyNumber, position, count = 55) {
+function seededDots(jerseyNumber, position, count = 80) {
   const zone = POSITION_ZONES[position] || { cx: 50, cy: 50 };
   let s = (jerseyNumber * 7919 + 12345) % 2147483647;
   const rng = () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
@@ -366,43 +366,80 @@ export default function PlayerProfile({ match, selectedPlayer, onPlayerSelect })
         </div>
       </div>
 
-      {/* ── DATA ROW — KPIs + pitch + chemistry ── */}
-      <div ref={kpiRef} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 280px 220px', borderBottom: '1px solid #1c1c1c' }}>
-        <KPIBlock label="Spatial Awareness" value={selectedPlayer.spatialAwareness} unit="/100" benchmark={71} color="#00C853" delay={0} />
-        <KPIBlock label="Scan Rate"          value={selectedPlayer.scanRate}          unit="esc/min" benchmark={3.1} color="#2979FF" delay={0.08} />
-        <KPIBlock label="Sprint Value"       value={selectedPlayer.sprintValueScore}  unit="sprints" benchmark={5.2} color="#FF9800" delay={0.16} />
+      {/* ── DATA ROW — pitch LEFT (big) + KPIs/stats RIGHT ── */}
+      <div ref={kpiRef} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '1px solid #1c1c1c' }}>
 
-        {/* Pitch */}
-        <div style={{ padding: '1.25rem', borderLeft: '1px solid #1c1c1c' }}>
-          <div className="section-label" style={{ marginBottom: '0.6rem' }}>Movimiento</div>
-          <PitchHeatmap player={selectedPlayer} />
+        {/* LEFT — Pitch heatmap, full height */}
+        <div style={{ padding: '1.5rem 2rem', borderRight: '1px solid #1c1c1c', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span className="section-label" style={{ margin: 0 }}>Mapa de Movimiento</span>
+            <span style={{ fontSize: '0.44rem', color: '#333', letterSpacing: '0.12em', fontFamily: 'Inter' }}>
+              3D SKELETAL · {selectedPlayer.position} ZONE
+            </span>
+          </div>
+          <div style={{ flex: 1, minHeight: 260 }}>
+            <PitchHeatmap player={selectedPlayer} />
+          </div>
+          <div style={{ display: 'flex', gap: '1.5rem', paddingTop: '0.25rem' }}>
+            {[
+              { label: 'Distancia', value: `${selectedPlayer.distanceCovered} km`, color: '#666' },
+              { label: 'Velocidad max', value: `${selectedPlayer.topSpeed} km/h`, color: '#666' },
+              { label: 'Minutos', value: `${selectedPlayer.minutesPlayed}'`, color: '#666' },
+            ].map(s => (
+              <div key={s.label}>
+                <div style={{ fontFamily: 'JetBrains Mono', fontSize: '1rem', fontWeight: 700, color: '#aaa' }}>{s.value}</div>
+                <div style={{ fontSize: '0.44rem', color: '#444', letterSpacing: '0.1em', fontFamily: 'Inter', marginTop: '0.1rem' }}>{s.label.toUpperCase()}</div>
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* Chemistry + Fatigue */}
-        <div style={{ borderLeft: '1px solid #1c1c1c', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ padding: '1.25rem', flex: 1, borderBottom: '1px solid #1c1c1c' }}>
-            <div className="section-label" style={{ marginBottom: '0.75rem' }}>Chemistry</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <svg viewBox="0 0 48 48" style={{ width: 44, height: 44, flexShrink: 0, transform: 'rotate(-90deg)' }}>
-                <circle cx="24" cy="24" r="19" fill="none" stroke="#1a1a1a" strokeWidth="4" />
-                <circle cx="24" cy="24" r="19" fill="none" stroke={color} strokeWidth="4" strokeLinecap="round"
-                  strokeDasharray={`${(selectedPlayer.chemistryScore / 100) * 119.4} 119.4`} />
-              </svg>
-              <div>
-                <div style={{ fontFamily: 'JetBrains Mono', fontSize: '1.2rem', fontWeight: 700, color }}>{selectedPlayer.chemistryScore}</div>
-                <div style={{ fontSize: '0.5rem', color: '#555', fontFamily: 'Inter', marginTop: '0.15rem' }}>
-                  {selectedPlayer.chemistryPartner || '—'}
+        {/* RIGHT — KPIs top, Chemistry + Fatigue bottom */}
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+
+          {/* 3 KPIs in a row */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', flex: 1 }}>
+            <KPIBlock label="Spatial Awareness" value={selectedPlayer.spatialAwareness} unit="/100"    benchmark={71}  color="#00C853" delay={0}    />
+            <KPIBlock label="Scan Rate"          value={selectedPlayer.scanRate}          unit="esc/min" benchmark={3.1} color="#2979FF" delay={0.08} />
+            <KPIBlock label="Sprint Value"       value={selectedPlayer.sprintValueScore}  unit="sprints" benchmark={5.2} color="#FF9800" delay={0.16} />
+          </div>
+
+          {/* Chemistry + Fatigue side by side */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderTop: '1px solid #1c1c1c' }}>
+            <div style={{ padding: '1.5rem', borderRight: '1px solid #1c1c1c' }}>
+              <div className="section-label" style={{ marginBottom: '0.75rem' }}>Chemistry</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <svg viewBox="0 0 48 48" style={{ width: 48, height: 48, flexShrink: 0, transform: 'rotate(-90deg)' }}>
+                  <circle cx="24" cy="24" r="19" fill="none" stroke="#1a1a1a" strokeWidth="4" />
+                  <circle cx="24" cy="24" r="19" fill="none" stroke={color} strokeWidth="4" strokeLinecap="round"
+                    strokeDasharray={`${(selectedPlayer.chemistryScore / 100) * 119.4} 119.4`} />
+                </svg>
+                <div>
+                  <div style={{ fontFamily: 'JetBrains Mono', fontSize: '1.8rem', fontWeight: 700, color, lineHeight: 1 }}>{selectedPlayer.chemistryScore}</div>
+                  <div style={{ fontSize: '0.5rem', color: '#555', fontFamily: 'Inter', marginTop: '0.3rem' }}>
+                    {selectedPlayer.chemistryPartner || '—'}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-          <div style={{ padding: '1.25rem' }}>
-            <div className="section-label" style={{ marginBottom: '0.5rem' }}>Fatiga</div>
-            <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2rem', color: Math.abs(selectedPlayer.fatigueSig) > 18 ? '#E32219' : '#FF9800', lineHeight: 1 }}>
-              {selectedPlayer.fatigueSig}%
+            <div style={{ padding: '1.5rem' }}>
+              <div className="section-label" style={{ marginBottom: '0.5rem' }}>Fatiga Muscular</div>
+              <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2.8rem', color: Math.abs(selectedPlayer.fatigueSig) > 18 ? '#E32219' : '#FF9800', lineHeight: 1 }}>
+                {selectedPlayer.fatigueSig}%
+              </div>
+              <div style={{ fontSize: '0.48rem', color: '#555', marginTop: '0.35rem', letterSpacing: '0.08em', fontFamily: 'Inter' }}>
+                CAÍDA EN 2DO TIEMPO
+              </div>
+              <div style={{ marginTop: '0.75rem', height: 3, background: '#1a1a1a', borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%', borderRadius: 2,
+                  width: `${Math.min(100, Math.abs(selectedPlayer.fatigueSig) * 3)}%`,
+                  background: Math.abs(selectedPlayer.fatigueSig) > 18 ? '#E32219' : '#FF9800',
+                }} />
+              </div>
             </div>
-            <div style={{ fontSize: '0.5rem', color: '#555', marginTop: '0.25rem' }}>caída en 2do tiempo</div>
           </div>
+
         </div>
       </div>
 
