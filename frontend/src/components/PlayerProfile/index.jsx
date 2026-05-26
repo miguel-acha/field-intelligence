@@ -76,7 +76,7 @@ function KPIBlock({ label, value, unit, benchmark, color, delay = 0 }) {
 
   return (
     <div style={{ padding: '1.5rem', borderBottom: '1px solid #111' }}>
-      <div style={{ fontSize: '0.5rem', letterSpacing: '0.16em', color: '#383838', marginBottom: '0.6rem', fontFamily: 'Inter', textTransform: 'uppercase' }}>
+      <div style={{ fontSize: '0.5rem', letterSpacing: '0.16em', color: '#666', marginBottom: '0.6rem', fontFamily: 'Inter', textTransform: 'uppercase' }}>
         {label}
       </div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem', marginBottom: '0.75rem' }}>
@@ -87,7 +87,7 @@ function KPIBlock({ label, value, unit, benchmark, color, delay = 0 }) {
         <div ref={barRef} style={{ height: '100%', background: color, width: '100%', transformOrigin: 'left' }} />
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: '0.5rem', color: '#2d2d2d', fontFamily: 'Inter' }}>avg liga: {benchmark}</span>
+        <span style={{ fontSize: '0.5rem', color: '#555', fontFamily: 'Inter' }}>avg liga: {benchmark}</span>
         <span style={{ fontSize: '0.55rem', fontWeight: 700, color: delta >= 0 ? '#00C853' : '#E32219', fontFamily: 'JetBrains Mono' }}>
           {delta >= 0 ? '+' : ''}{delta.toFixed(1)}
         </span>
@@ -103,7 +103,7 @@ function PickerRow({ player, onClick }) {
   useEffect(() => {
     const el = rowRef.current;
     if (!el) return;
-    const on = () => gsap.to(el, { background: 'rgba(255,255,255,0.025)', duration: 0.15 });
+    const on = () => gsap.to(el, { background: 'rgba(255,255,255,0.055)', duration: 0.15 });
     const off = () => gsap.to(el, { background: 'transparent', duration: 0.15 });
     el.addEventListener('mouseenter', on);
     el.addEventListener('mouseleave', off);
@@ -130,7 +130,7 @@ function PickerRow({ player, onClick }) {
         <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '0.95rem', color: '#fff', letterSpacing: '0.04em', lineHeight: 1.1 }}>
           {player.name.toUpperCase()}
         </div>
-        <div style={{ fontSize: '0.5rem', color: '#383838', letterSpacing: '0.04em', fontFamily: 'Inter', marginTop: '0.1rem' }}>
+        <div style={{ fontSize: '0.5rem', color: '#666', letterSpacing: '0.04em', fontFamily: 'Inter', marginTop: '0.1rem' }}>
           {player.team.split(' ').slice(-1)[0]} · {player.minutesPlayed}'
         </div>
       </div>
@@ -215,11 +215,11 @@ export default function PlayerProfile({ match, selectedPlayer, onPlayerSelect })
           {/* Column headers */}
           <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 44px 60px 55px 55px', gap: '0.6rem', padding: '0.5rem 0.75rem', borderBottom: '1px solid #111' }}>
             <div />
-            <span style={{ fontSize: '0.48rem', color: '#2d2d2d', letterSpacing: '0.12em', fontFamily: 'Inter' }}>JUGADOR</span>
-            <span style={{ fontSize: '0.48rem', color: '#2d2d2d', letterSpacing: '0.12em', fontFamily: 'Inter' }}>POS</span>
-            <span style={{ fontSize: '0.48rem', color: '#2d2d2d', letterSpacing: '0.12em', fontFamily: 'Inter', textAlign: 'center' }}>VISIÓN</span>
-            <span style={{ fontSize: '0.48rem', color: '#2d2d2d', letterSpacing: '0.12em', fontFamily: 'Inter', textAlign: 'center' }}>SCAN</span>
-            <span style={{ fontSize: '0.48rem', color: '#2d2d2d', letterSpacing: '0.12em', fontFamily: 'Inter', textAlign: 'center' }}>FAT</span>
+            <span style={{ fontSize: '0.48rem', color: '#555', letterSpacing: '0.12em', fontFamily: 'Inter' }}>JUGADOR</span>
+            <span style={{ fontSize: '0.48rem', color: '#555', letterSpacing: '0.12em', fontFamily: 'Inter' }}>POS</span>
+            <span style={{ fontSize: '0.48rem', color: '#555', letterSpacing: '0.12em', fontFamily: 'Inter', textAlign: 'center' }}>VISIÓN</span>
+            <span style={{ fontSize: '0.48rem', color: '#555', letterSpacing: '0.12em', fontFamily: 'Inter', textAlign: 'center' }}>SCAN</span>
+            <span style={{ fontSize: '0.48rem', color: '#555', letterSpacing: '0.12em', fontFamily: 'Inter', textAlign: 'center' }}>FAT</span>
           </div>
           {teams.map(team => (
             <div key={team}>
@@ -291,7 +291,7 @@ export default function PlayerProfile({ match, selectedPlayer, onPlayerSelect })
           ].map(s => (
             <div key={s.label} style={{ textAlign: 'center' }}>
               <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 'clamp(1.8rem, 3vw, 2.5rem)', color: '#fff', letterSpacing: '0.04em', lineHeight: 1 }}>{s.value}</div>
-              <div style={{ fontSize: '0.48rem', color: '#383838', letterSpacing: '0.14em', marginTop: '0.2rem', fontFamily: 'Inter' }}>{s.label}</div>
+              <div style={{ fontSize: '0.48rem', color: '#666', letterSpacing: '0.14em', marginTop: '0.2rem', fontFamily: 'Inter' }}>{s.label}</div>
             </div>
           ))}
         </div>
@@ -336,7 +336,7 @@ export default function PlayerProfile({ match, selectedPlayer, onPlayerSelect })
                 </svg>
                 <div>
                   <div style={{ fontFamily: 'JetBrains Mono', fontSize: '1.2rem', fontWeight: 700, color }}>{selectedPlayer.chemistryScore}</div>
-                  <div style={{ fontSize: '0.5rem', color: '#383838', letterSpacing: '0.06em', fontFamily: 'Inter' }}>
+                  <div style={{ fontSize: '0.5rem', color: '#666', letterSpacing: '0.06em', fontFamily: 'Inter' }}>
                     {selectedPlayer.chemistryPartner || '—'}
                   </div>
                 </div>
@@ -347,7 +347,7 @@ export default function PlayerProfile({ match, selectedPlayer, onPlayerSelect })
               <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2.2rem', letterSpacing: '0.04em', color: Math.abs(selectedPlayer.fatigueSig) > 18 ? '#E32219' : '#FF9800', lineHeight: 1 }}>
                 {selectedPlayer.fatigueSig}%
               </div>
-              <div style={{ fontSize: '0.5rem', color: '#383838', marginTop: '0.3rem', fontFamily: 'Inter' }}>caída en 2do tiempo</div>
+              <div style={{ fontSize: '0.5rem', color: '#666', marginTop: '0.3rem', fontFamily: 'Inter' }}>caída en 2do tiempo</div>
             </div>
           </div>
         </div>
@@ -397,7 +397,7 @@ export default function PlayerProfile({ match, selectedPlayer, onPlayerSelect })
                 <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '4rem', color: '#111', letterSpacing: '0.04em', lineHeight: 1 }}>
                   {selectedPlayer.jerseyNumber}
                 </div>
-                <div style={{ fontSize: '0.75rem', color: '#383838', lineHeight: 1.5 }}>
+                <div style={{ fontSize: '0.75rem', color: '#666', lineHeight: 1.5 }}>
                   Presioná <strong style={{ color: '#E32219' }}>Analizar con IA</strong> para el informe táctico de{' '}
                   <strong style={{ color: '#fff' }}>{selectedPlayer.name.split(' ').slice(-1)[0]}</strong>
                 </div>
