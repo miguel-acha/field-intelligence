@@ -162,18 +162,28 @@ export default function CoachDashboard({ match, onPlayerSelect, onViewChange }) 
   const stats     = match.teamStats;
 
   useEffect(() => {
-    gsap.from(heroRef.current, { opacity: 0, y: -18, duration: 0.6, ease: 'power3.out' });
+    // Hero fade-in — use fromTo so final state is always explicit
+    gsap.fromTo(heroRef.current,
+      { opacity: 0, y: -14 },
+      { opacity: 1, y: 0, duration: 0.55, ease: 'power3.out', overwrite: true }
+    );
+    // Score count-up (no delay — content is visible immediately)
     const ho = { v: 0 }, ao = { v: 0 };
     gsap.to(ho, {
-      v: match.score.home, duration: 0.75, delay: 0.35, ease: 'power2.out',
+      v: match.score.home, duration: 0.8, ease: 'power2.out', overwrite: true,
       onUpdate: () => { if (homeRef.current) homeRef.current.textContent = Math.round(ho.v); },
     });
     gsap.to(ao, {
-      v: match.score.away, duration: 0.75, delay: 0.5, ease: 'power2.out',
+      v: match.score.away, duration: 0.8, delay: 0.12, ease: 'power2.out', overwrite: true,
       onUpdate: () => { if (awayRef.current) awayRef.current.textContent = Math.round(ao.v); },
     });
+    // Body: no opacity animation — content is always visible, just slide in
     if (bodyRef.current) {
-      gsap.from([...bodyRef.current.children], { opacity: 0, y: 20, stagger: 0.09, duration: 0.5, delay: 0.55, ease: 'power2.out' });
+      gsap.fromTo(
+        [...bodyRef.current.children],
+        { y: 14 },
+        { y: 0, stagger: 0.07, duration: 0.4, ease: 'power2.out', overwrite: true }
+      );
     }
   }, [match]);
 

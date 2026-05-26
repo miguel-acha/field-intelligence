@@ -120,7 +120,7 @@ function PickerRow({ player, onClick }) {
         alignItems: 'center',
         gap: '0.6rem',
         padding: '0.6rem 0.75rem',
-        borderBottom: '1px solid #0e0e0e',
+        borderBottom: '1px solid #1c1c1c',
         cursor: 'pointer',
         borderRadius: 4,
       }}
@@ -170,13 +170,23 @@ export default function PlayerProfile({ match, selectedPlayer, onPlayerSelect })
   useEffect(() => {
     if (!selectedPlayer) {
       if (pickerRef.current) {
-        gsap.from([...pickerRef.current.children], { opacity: 0, x: -8, stagger: 0.025, duration: 0.35, ease: 'power2.out', delay: 0.1 });
+        // No opacity animation — just slide so content is always visible
+        gsap.fromTo([...pickerRef.current.children],
+          { x: -6 },
+          { x: 0, stagger: 0.02, duration: 0.3, ease: 'power2.out', overwrite: true }
+        );
       }
       return;
     }
     setAiText(''); setIsDone(false);
-    if (headerRef.current) gsap.from(headerRef.current, { opacity: 0, y: -10, duration: 0.45, ease: 'power2.out' });
-    if (kpiRef.current)    gsap.from([...kpiRef.current.children], { opacity: 0, y: 12, stagger: 0.08, duration: 0.4, delay: 0.2, ease: 'power2.out' });
+    if (headerRef.current) gsap.fromTo(headerRef.current,
+      { opacity: 0, y: -8 },
+      { opacity: 1, y: 0, duration: 0.4, ease: 'power2.out', overwrite: true }
+    );
+    if (kpiRef.current) gsap.fromTo([...kpiRef.current.children],
+      { y: 10 },
+      { y: 0, stagger: 0.07, duration: 0.35, ease: 'power2.out', overwrite: true }
+    );
   }, [selectedPlayer]);
 
   useEffect(() => {
