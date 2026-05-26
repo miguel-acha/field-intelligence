@@ -33,7 +33,7 @@ function ScatterTooltip({ active, payload }) {
         borderRadius: '8px',
         padding: '0.75rem 1rem',
         fontSize: '0.78rem',
-        fontFamily: 'Space Grotesk, sans-serif',
+        fontFamily: 'Inter, sans-serif',
         maxWidth: '200px',
       }}>
         <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.35rem' }}>{p.name}</div>
@@ -63,7 +63,7 @@ function FilterPill({ label, value, options, onChange }) {
       <span style={{
         fontSize: '0.6rem', color: 'var(--text-muted)',
         textTransform: 'uppercase', letterSpacing: '0.08em',
-        fontFamily: 'Space Grotesk, sans-serif', fontWeight: 600,
+        fontFamily: 'Inter, sans-serif', fontWeight: 600,
       }}>
         {label}
       </span>
@@ -112,7 +112,7 @@ export default function AnalystMode({ match, onPlayerSelect, onViewChange }) {
     if (!nlSpotlightRef.current) return;
     if (isQuerying) {
       nlPulseAnim.current = gsap.to(nlSpotlightRef.current, {
-        boxShadow: '0 0 40px rgba(0,255,135,0.18), 0 0 80px rgba(0,255,135,0.06)',
+        boxShadow: '0 0 40px rgba(227,34,25,0.18), 0 0 80px rgba(227,34,25,0.06)',
         repeat: -1, yoyo: true, duration: 1.2, ease: 'sine.inOut',
       });
     } else {
@@ -266,7 +266,7 @@ export default function AnalystMode({ match, onPlayerSelect, onViewChange }) {
         </div>
         <ResponsiveContainer width="100%" height={320}>
           <ScatterChart margin={{ top: 10, right: 20, bottom: 20, left: 0 }}>
-            <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
+            <CartesianGrid stroke="#222" strokeDasharray="3 3" />
             <XAxis
               type="number"
               dataKey="x"
@@ -274,10 +274,10 @@ export default function AnalystMode({ match, onPlayerSelect, onViewChange }) {
               label={{
                 value: `${xMeta.label} ${xMeta.unit}`,
                 position: 'insideBottomRight', offset: -10,
-                fill: 'var(--text-muted)', fontSize: 11,
+                fill: '#666', fontSize: 11,
               }}
-              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}
-              stroke="var(--border-bright)"
+              tick={{ fill: '#777', fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}
+              stroke="#333"
             />
             <YAxis
               type="number"
@@ -286,10 +286,10 @@ export default function AnalystMode({ match, onPlayerSelect, onViewChange }) {
               label={{
                 value: `${yMeta.label} ${yMeta.unit}`,
                 angle: -90, position: 'insideLeft',
-                fill: 'var(--text-muted)', fontSize: 11,
+                fill: '#666', fontSize: 11,
               }}
-              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}
-              stroke="var(--border-bright)"
+              tick={{ fill: '#777', fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}
+              stroke="#333"
             />
             <Tooltip content={<ScatterTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
             {scatterByTeam.map(({ team, color, data }) => (
@@ -307,7 +307,7 @@ export default function AnalystMode({ match, onPlayerSelect, onViewChange }) {
               <div style={{ width: 10, height: 10, borderRadius: '50%', background: getTeamColor(team) }} />
               <span style={{
                 fontSize: '0.65rem', color: 'var(--text-muted)',
-                fontFamily: 'Space Grotesk, sans-serif',
+                fontFamily: 'Inter, sans-serif',
               }}>
                 {team}
               </span>
@@ -328,7 +328,7 @@ export default function AnalystMode({ match, onPlayerSelect, onViewChange }) {
                 <th
                   key={col.key}
                   onClick={() => handleSort(col.key)}
-                  style={{ color: sortKey === col.key ? 'var(--accent-green)' : undefined }}
+                  style={{ color: sortKey === col.key ? '#E32219' : undefined }}
                 >
                   {col.label}
                   {sortKey === col.key && (
@@ -356,7 +356,7 @@ export default function AnalystMode({ match, onPlayerSelect, onViewChange }) {
                       <td key={col.key}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                           <span style={{
-                            fontFamily: 'Space Grotesk, sans-serif',
+                            fontFamily: 'Inter, sans-serif',
                             color: 'var(--text-primary)', fontWeight: 600, fontSize: '0.8rem',
                           }}>
                             {val}
@@ -410,7 +410,7 @@ export default function AnalystMode({ match, onPlayerSelect, onViewChange }) {
       <div ref={nlSpotlightRef} className="ai-spotlight">
         <div style={{ marginBottom: '1rem' }}>
           <h3 style={{
-            fontFamily: 'Space Grotesk', fontWeight: 700,
+            fontFamily: 'Inter', fontWeight: 700,
             fontSize: '1.05rem', color: 'var(--text-primary)', marginBottom: '0.2rem',
           }}>
             Natural Language Query — IA Analista
@@ -433,20 +433,8 @@ export default function AnalystMode({ match, onPlayerSelect, onViewChange }) {
           <button
             onClick={handleQuery}
             disabled={isQuerying || !nlQuery.trim()}
-            style={{
-              background: isQuerying || !nlQuery.trim() ? 'rgba(0,255,135,0.05)' : 'var(--accent-green)',
-              color: isQuerying || !nlQuery.trim() ? 'var(--accent-green)' : 'var(--bg-primary)',
-              border: isQuerying || !nlQuery.trim() ? '1px solid rgba(0,255,135,0.3)' : 'none',
-              borderRadius: '8px',
-              padding: '0.65rem 1.25rem',
-              fontFamily: 'Space Grotesk',
-              fontWeight: 700,
-              fontSize: '0.82rem',
-              cursor: isQuerying || !nlQuery.trim() ? 'not-allowed' : 'pointer',
-              flexShrink: 0,
-              display: 'flex', alignItems: 'center', gap: '0.4rem',
-              transition: 'all 0.2s',
-            }}
+            className="btn-primary"
+            style={{ flexShrink: 0 }}
           >
             {isQuerying ? (
               <>
@@ -482,11 +470,11 @@ export default function AnalystMode({ match, onPlayerSelect, onViewChange }) {
                 cursor: 'pointer',
                 color: 'var(--text-muted)',
                 fontSize: '0.68rem',
-                fontFamily: 'Space Grotesk, sans-serif',
+                fontFamily: 'Inter, sans-serif',
                 transition: 'all 0.15s',
               }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-green)'; e.currentTarget.style.color = 'var(--accent-green)'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#E32219'; e.currentTarget.style.color = '#E32219'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = '#222'; e.currentTarget.style.color = '#777'; }}
             >
               {q.length > 42 ? q.substring(0, 42) + '…' : q}
             </button>
@@ -510,17 +498,17 @@ export default function AnalystMode({ match, onPlayerSelect, onViewChange }) {
           <div style={{
             background: 'rgba(0,0,0,0.25)', borderRadius: '10px',
             padding: '1.25rem 1.5rem',
-            borderLeft: '3px solid var(--accent-green)',
+            borderLeft: '3px solid #E32219',
             marginTop: '0.75rem',
           }}>
             <div style={{
               fontSize: '0.62rem', color: 'var(--text-muted)',
-              marginBottom: '0.75rem', fontFamily: 'Space Grotesk',
+              marginBottom: '0.75rem', fontFamily: 'Inter',
             }}>
               Q: {nlQuery}
             </div>
             <p style={{
-              fontFamily: 'Space Grotesk', fontSize: '0.92rem',
+              fontFamily: 'Inter', fontSize: '0.92rem',
               lineHeight: 1.8, color: 'var(--text-primary)',
               margin: 0, whiteSpace: 'pre-wrap',
             }}>
