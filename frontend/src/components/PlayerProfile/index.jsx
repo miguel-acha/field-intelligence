@@ -1,6 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import KPICard from '../shared/KPICard';
-import { KPI_META } from '../../data/mockData';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { gsap } from 'gsap';
 import { analyzePlayer } from '../../services/claude';
 
 // ---- Position zones on a 105x68 pitch (SVG mapped 0-100%) ----
@@ -22,184 +21,196 @@ const POSITION_ZONES = {
   CF:  { cx: 78, cy: 50 },
 };
 
-// Generate reproducible dots using player's jersey number as seed
-function seededDots(jerseyNumber, position, count = 45) {
+function seededDots(jerseyNumber, position, count = 50) {
   const zone = POSITION_ZONES[position] || { cx: 50, cy: 50 };
   let s = (jerseyNumber * 7919 + 12345) % 2147483647;
   const rng = () => {
     s = (s * 16807) % 2147483647;
     return (s - 1) / 2147483646;
   };
-
-  const spreadX = position === 'GK' ? 12 : position === 'CB' || position === 'LB' || position === 'RB' ? 20 : 30;
-  const spreadY = 28;
-
-  return Array.from({ length: count }, (_, i) => {
+  const spreadX = position === 'GK' ? 10 : 28;
+  const spreadY = 26;
+  return Array.from({ length: count }, () => {
     const angle = rng() * Math.PI * 2;
-    const r = rng();
-    const dx = Math.cos(angle) * r * spreadX;
-    const dy = Math.sin(angle) * r * spreadY;
-    const opacity = 0.3 + rng() * 0.7;
-    const size = 1 + rng() * 2.5;
+    const r = Math.sqrt(rng());
     return {
-      x: Math.max(2, Math.min(98, zone.cx + dx)),
-      y: Math.max(2, Math.min(98, zone.cy + dy)),
-      opacity,
-      size,
+      x: Math.max(2, Math.min(98, zone.cx + Math.cos(angle) * r * spreadX)),
+      y: Math.max(2, Math.min(98, zone.cy + Math.sin(angle) * r * spreadY)),
+      opacity: 0.25 + rng() * 0.65,
+      size: 1.2 + rng() * 2.2,
     };
   });
 }
 
-// ---- Football pitch SVG ----
 function PitchHeatmap({ player }) {
   const dots = seededDots(player.jerseyNumber, player.position);
-  const W = 400, H = 260;
+  const W = 320, H = 210;
+  const px = x => (x / 100) * W;
+  const py = y => (y / 100) * H;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', display: 'block', borderRadius: '8px' }}>
+      <rect width={W} height={H} fill="#0a1f12" rx="8" />
+      <g stroke="rgba(0,255,135,0.18)" strokeWidth="1" fill="none">
+        <rect x="6" y="6" width={W - 12} height={H - 12} />
+        <line x1={W / 2} y1="6" x2={W / 2} y2={H - 6} />
+        <circle cx={W / 2} cy={H / 2} r="26" />
+        <rect x="6" y={H * 0.22} width={W * 0.18} height={H * 0.56} />
+        <rect x={W - 6 - W * 0.18} y={H * 0.22} width={W * 0.18} height={H * 0.56} />
+      </g>
+      {dots.map((d, i) => (
+        <circle
+          key={i}
+          cx={px(d.x)}
+          cy={py(d.y)}
+          r={d.size}
+          fill="var(--accent-green)"
+          opacity={d.opacity * 0.7}
+        />
+      ))}
+      <text
+        x={W - 8} y={H - 6}
+        textAnchor="end"
+        fill="rgba(0,255,135,0.3)"
+        fontSize="8"
+        fontFamily="JetBrains Mono, monospace"
+      >
+        #{player.jerseyNumber} {player.position}
+      </text>
+    </svg>
+  );
+}
 
-  // Perspective: map 0-100% to SVG coords
-  const px = (x) => (x / 100) * W;
-  const py = (y) => (y / 100) * H;
+// ---- Big KPI card with count-up and bar ----
+function BigKPICard({ label, value, unit, benchmark, color, delay = 0 }) {
+  const numRef = useRef(null);
+  const barRef = useRef(null);
+  const delta = value - benchmark;
+  const barPct = Math.min(100, Math.max(0, (value / (benchmark * 1.4)) * 100));
+
+  useEffect(() => {
+    const obj = { val: 0 };
+    gsap.to(obj, {
+      val: value, duration: 0.8, delay, ease: 'power2.out',
+      onUpdate: () => {
+        if (numRef.current) {
+          numRef.current.textContent = typeof value === 'number' && !Number.isInteger(value)
+            ? obj.val.toFixed(1)
+            : Math.round(obj.val);
+        }
+      },
+    });
+    gsap.fromTo(
+      barRef.current,
+      { scaleX: 0 },
+      { scaleX: barPct / 100, duration: 0.8, delay: delay + 0.1, ease: 'power2.out', transformOrigin: 'left' }
+    );
+  }, [value, delay, barPct]);
 
   return (
-    <div className="pitch-wrapper" style={{ width: '100%' }}>
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        style={{ width: '100%', display: 'block' }}
-      >
-        {/* Pitch background */}
-        <rect x="0" y="0" width={W} height={H} fill="#0d2a1a" />
-
-        {/* Pitch lines */}
-        <g stroke="rgba(0,255,135,0.25)" strokeWidth="1" fill="none">
-          {/* Border */}
-          <rect x="8" y="8" width={W - 16} height={H - 16} />
-          {/* Halfway line */}
-          <line x1={W / 2} y1="8" x2={W / 2} y2={H - 8} />
-          {/* Center circle */}
-          <circle cx={W / 2} cy={H / 2} r="32" />
-          <circle cx={W / 2} cy={H / 2} r="2" fill="rgba(0,255,135,0.4)" />
-
-          {/* Left penalty area */}
-          <rect x="8" y={H * 0.22} width={W * 0.18} height={H * 0.56} />
-          {/* Left goal area */}
-          <rect x="8" y={H * 0.35} width={W * 0.07} height={H * 0.3} />
-          {/* Left penalty spot */}
-          <circle cx={W * 0.11} cy={H / 2} r="2" fill="rgba(0,255,135,0.4)" />
-
-          {/* Right penalty area */}
-          <rect x={W - 8 - W * 0.18} y={H * 0.22} width={W * 0.18} height={H * 0.56} />
-          {/* Right goal area */}
-          <rect x={W - 8 - W * 0.07} y={H * 0.35} width={W * 0.07} height={H * 0.3} />
-          {/* Right penalty spot */}
-          <circle cx={W * 0.89} cy={H / 2} r="2" fill="rgba(0,255,135,0.4)" />
-        </g>
-
-        {/* Goals */}
-        <g fill="rgba(0,255,135,0.5)">
-          <rect x="0" y={H * 0.38} width="8" height={H * 0.24} />
-          <rect x={W - 8} y={H * 0.38} width="8" height={H * 0.24} />
-        </g>
-
-        {/* Heat dots */}
-        {dots.map((dot, i) => (
-          <circle
-            key={i}
-            cx={px(dot.x)}
-            cy={py(dot.y)}
-            r={dot.size}
-            fill="var(--accent-green)"
-            opacity={dot.opacity * 0.75}
+    <div className="card" style={{ padding: '1.25rem 1.5rem', borderTop: `2px solid ${color}` }}>
+      <div style={{ fontSize: '0.58rem', letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+        {label}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem' }}>
+        <span ref={numRef} style={{
+          fontFamily: 'JetBrains Mono', fontSize: '2.5rem',
+          fontWeight: 700, color, lineHeight: 1,
+        }}>
+          0
+        </span>
+        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{unit}</span>
+      </div>
+      <div style={{ marginTop: '0.75rem' }}>
+        <div className="stat-bar-track">
+          <div
+            ref={barRef}
+            className="stat-bar-fill"
+            style={{ background: color, width: '100%', transformOrigin: 'left' }}
           />
-        ))}
-
-        {/* Zone highlight */}
-        {(() => {
-          const zone = POSITION_ZONES[player.position] || { cx: 50, cy: 50 };
-          return (
-            <circle
-              cx={px(zone.cx)}
-              cy={py(zone.cy)}
-              r="16"
-              fill="rgba(0,255,135,0.08)"
-              stroke="rgba(0,255,135,0.3)"
-              strokeWidth="1"
-              strokeDasharray="4 2"
-            />
-          );
-        })()}
-
-        {/* Player label */}
-        <text
-          x={W - 10}
-          y={H - 10}
-          textAnchor="end"
-          fill="rgba(0,255,135,0.4)"
-          fontSize="9"
-          fontFamily="JetBrains Mono, monospace"
-        >
-          #{player.jerseyNumber} {player.name.split(' ').pop()} — {player.position}
-        </text>
-      </svg>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.3rem' }}>
+          <span style={{ fontSize: '0.58rem', color: 'var(--text-muted)' }}>Liga avg: {benchmark}</span>
+          <span style={{
+            fontSize: '0.62rem', fontWeight: 700,
+            color: delta >= 0 ? 'var(--accent-green)' : 'var(--accent-red)',
+            fontFamily: 'JetBrains Mono',
+          }}>
+            {delta >= 0 ? '+' : ''}{typeof delta === 'number' ? delta.toFixed(1) : delta}
+          </span>
+        </div>
+      </div>
     </div>
   );
 }
 
-// ---- KPI value with delta vs benchmark ----
-function buildKpiCards(player) {
-  return Object.entries(KPI_META).map(([key, meta]) => {
-    const value = player[key];
-    if (value === undefined || value === null) return null;
-    const delta = parseFloat((value - meta.benchmark).toFixed(2));
-    return {
-      key,
-      label: meta.label,
-      value,
-      unit: meta.unit,
-      trend: delta,
-      benchmark: meta.benchmark,
-    };
-  }).filter(Boolean);
-}
+// ---- Player picker grid (no player selected) ----
+const TEAM_COLORS = {
+  'Bayern München':    '#dc2626',
+  'Borussia Dortmund': '#fbbf24',
+  'Bayer Leverkusen':  '#f97316',
+  'RB Leipzig':        '#3b82f6',
+};
+const tc = t => TEAM_COLORS[t] || '#3b82f6';
 
-// ---- Player Grid (when no player selected) ----
 function PlayerPickerGrid({ players, onSelect }) {
+  const gridRef = useRef(null);
+
+  useEffect(() => {
+    if (gridRef.current) {
+      gsap.from(gridRef.current.children, {
+        opacity: 0, y: 16, stagger: 0.03, duration: 0.4, ease: 'power2.out',
+      });
+    }
+  }, []);
+
   return (
     <div>
-      <div style={{ marginBottom: '1rem', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-        Seleccioná un jugador para ver su perfil completo con análisis IA
-      </div>
-      <div className="player-grid">
-        {players.map(player => (
+      <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '1rem' }}>
+        Seleccioná un jugador para ver su perfil completo y análisis táctico con IA
+      </p>
+      <div
+        ref={gridRef}
+        style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '0.65rem' }}
+      >
+        {players.map(p => (
           <div
-            key={player.name}
-            className="player-card"
-            onClick={() => onSelect(player)}
+            key={p.name}
+            className="player-card-v2"
+            onClick={() => onSelect(p)}
+            style={{ borderLeft: `2px solid ${tc(p.team)}44` }}
           >
-            <div className="player-number">#{player.jerseyNumber}</div>
-            <div className="player-name">{player.name}</div>
-            <div className="player-position">{player.position}</div>
-            <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>{player.team}</div>
-            <div className="player-kpi-mini" style={{ marginTop: '0.5rem' }}>
-              <div className="player-kpi-mini-row">
-                <span className="player-kpi-mini-label">Spatial</span>
-                <span className="player-kpi-mini-value">{player.spatialAwareness}</span>
+            <div style={{ fontFamily: 'JetBrains Mono', fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+              #{p.jerseyNumber}
+            </div>
+            <div style={{
+              fontFamily: 'Space Grotesk', fontWeight: 700,
+              fontSize: '0.85rem', color: 'var(--text-primary)', margin: '0.1rem 0',
+            }}>
+              {p.name.split(' ').pop()}
+            </div>
+            <div style={{ fontSize: '0.62rem', color: tc(p.team) }}>
+              {p.team.split(' ')[0]} · {p.position}
+            </div>
+            <div style={{ marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{
+                  fontFamily: 'JetBrains Mono', fontWeight: 700,
+                  color: 'var(--accent-green)', fontSize: '1rem',
+                }}>
+                  {p.spatialAwareness}
+                </div>
+                <div style={{ fontSize: '0.5rem', color: 'var(--text-muted)' }}>SPA</div>
               </div>
-              <div className="player-kpi-mini-row">
-                <span className="player-kpi-mini-label">Scan Rate</span>
-                <span className="player-kpi-mini-value">{player.scanRate}</span>
-              </div>
-              <div className="player-kpi-mini-row">
-                <span className="player-kpi-mini-label">Fatigue</span>
-                <span className="player-kpi-mini-value" style={{ color: 'var(--accent-amber)' }}>
-                  {player.fatigueSig}%
-                </span>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{
+                  fontFamily: 'JetBrains Mono', fontWeight: 700,
+                  color: 'var(--accent-amber)', fontSize: '1rem',
+                }}>
+                  {p.fatigueSig}%
+                </div>
+                <div style={{ fontSize: '0.5rem', color: 'var(--text-muted)' }}>FAT</div>
               </div>
             </div>
-            {(player.goals > 0 || player.assists > 0) && (
-              <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
-                {player.goals > 0 && <span className="tag tag-green">⚽ {player.goals}</span>}
-                {player.assists > 0 && <span className="tag tag-blue">🅰️ {player.assists}</span>}
-              </div>
-            )}
           </div>
         ))}
       </div>
@@ -211,27 +222,49 @@ function PlayerPickerGrid({ players, onSelect }) {
 export default function PlayerProfile({ match, selectedPlayer, onPlayerSelect }) {
   const [aiText, setAiText] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [aiError, setAiError] = useState('');
   const [isDone, setIsDone] = useState(false);
+  const spotlightRef = useRef(null);
+  const headerRef = useRef(null);
+  const kpiRowRef = useRef(null);
+  const pulseAnim = useRef(null);
+
+  useEffect(() => {
+    if (!selectedPlayer) return;
+    setAiText('');
+    setIsDone(false);
+    if (headerRef.current) {
+      gsap.from(headerRef.current, { opacity: 0, y: -12, duration: 0.5, ease: 'power2.out' });
+    }
+    if (kpiRowRef.current) {
+      gsap.from(kpiRowRef.current.children, {
+        opacity: 0, y: 16, stagger: 0.1, duration: 0.5, delay: 0.2, ease: 'power2.out',
+      });
+    }
+  }, [selectedPlayer]);
+
+  useEffect(() => {
+    if (!spotlightRef.current) return;
+    if (isAnalyzing) {
+      pulseAnim.current = gsap.to(spotlightRef.current, {
+        boxShadow: '0 0 40px rgba(0,255,135,0.2), 0 0 80px rgba(0,255,135,0.08)',
+        repeat: -1, yoyo: true, duration: 1.2, ease: 'sine.inOut',
+      });
+    } else {
+      if (pulseAnim.current) pulseAnim.current.kill();
+      gsap.to(spotlightRef.current, { boxShadow: 'none', duration: 0.4 });
+    }
+  }, [isAnalyzing]);
 
   const handleAnalyze = useCallback(async () => {
     if (!selectedPlayer || isAnalyzing) return;
     setIsAnalyzing(true);
     setAiText('');
-    setAiError('');
     setIsDone(false);
-
     try {
-      await analyzePlayer(selectedPlayer, match, (chunk) => {
-        setAiText(prev => prev + chunk);
-      });
+      await analyzePlayer(selectedPlayer, match, chunk => setAiText(prev => prev + chunk));
       setIsDone(true);
-    } catch (err) {
-      if (err.message === 'NO_API_KEY') {
-        setAiError('Para activar el análisis IA, agregá tu clave VITE_ANTHROPIC_API_KEY en el archivo .env de la carpeta frontend/');
-      } else {
-        setAiError(`Error al conectar con la API: ${err.message}`);
-      }
+    } catch (e) {
+      setAiText('Error al conectar con el servicio de IA. Verificá tu API key en .env');
     } finally {
       setIsAnalyzing(false);
     }
@@ -239,250 +272,337 @@ export default function PlayerProfile({ match, selectedPlayer, onPlayerSelect })
 
   if (!selectedPlayer) {
     return (
-      <div>
-        <div className="section-heading">Player Profile — Seleccioná un Jugador</div>
+      <div style={{ padding: '1.25rem' }}>
+        <div className="section-label">Player Profile</div>
         <PlayerPickerGrid players={match.players} onSelect={onPlayerSelect} />
       </div>
     );
   }
 
-  const kpiCards = buildKpiCards(selectedPlayer);
+  const teamColor = TEAM_COLORS[selectedPlayer.team] || '#3b82f6';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: '1.25rem' }}>
 
-      {/* ---- BACK BUTTON ---- */}
+      {/* Back */}
       <button
-        className="btn btn-ghost"
-        style={{ alignSelf: 'flex-start' }}
         onClick={() => onPlayerSelect(null)}
+        style={{
+          alignSelf: 'flex-start',
+          background: 'transparent',
+          border: '1px solid var(--border)',
+          borderRadius: '6px',
+          padding: '0.35rem 0.85rem',
+          cursor: 'pointer',
+          color: 'var(--text-muted)',
+          fontSize: '0.78rem',
+          fontFamily: 'Space Grotesk',
+        }}
       >
         ← Todos los jugadores
       </button>
 
-      {/* ---- PLAYER HEADER ---- */}
-      <div className="card">
-        <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-          {/* Jersey number big display */}
+      {/* Header */}
+      <div ref={headerRef} className="card" style={{ padding: '1.5rem 2rem', borderLeft: `3px solid ${teamColor}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
           <div style={{
-            width: 72,
-            height: 72,
-            borderRadius: '12px',
-            background: 'var(--bg-tertiary)',
-            border: '2px solid var(--accent-green)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            width: 64, height: 64, borderRadius: '12px',
+            background: `${teamColor}18`,
+            border: `1px solid ${teamColor}40`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
             flexShrink: 0,
           }}>
             <span style={{
-              fontFamily: 'JetBrains Mono, monospace',
-              fontSize: '1.8rem',
-              fontWeight: 700,
-              color: 'var(--accent-green)',
+              fontFamily: 'JetBrains Mono', fontSize: '1.6rem',
+              fontWeight: 800, color: teamColor,
             }}>
               {selectedPlayer.jerseyNumber}
             </span>
           </div>
-
-          {/* Name + position */}
           <div style={{ flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.35rem' }}>
-              <h2 style={{ fontSize: '1.6rem', color: 'var(--text-primary)' }}>
-                {selectedPlayer.name}
-              </h2>
-              <span className="tag tag-blue" style={{ fontSize: '0.7rem' }}>{selectedPlayer.position}</span>
-              {selectedPlayer.goals > 0 && <span className="tag tag-green">⚽ {selectedPlayer.goals} gol{selectedPlayer.goals > 1 ? 'es' : ''}</span>}
-              {selectedPlayer.assists > 0 && <span className="tag tag-blue">🅰️ {selectedPlayer.assists} asist.</span>}
-            </div>
-            <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '0.75rem' }}>
-              {selectedPlayer.team}
-            </div>
-            <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-              {[
-                { label: 'Minutos',      value: `${selectedPlayer.minutesPlayed}'`,            color: 'var(--text-primary)' },
-                { label: 'Distancia',    value: `${selectedPlayer.distanceCovered} km`,         color: 'var(--accent-blue)' },
-                { label: 'Vel. Máx',     value: `${selectedPlayer.topSpeed} km/h`,              color: 'var(--accent-amber)' },
-                { label: 'Fatigue Sig.', value: `${selectedPlayer.fatigueSig}%`,                color: 'var(--accent-red)' },
-              ].map(stat => (
-                <div key={stat.label} style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                    {stat.label}
-                  </div>
-                  <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '1.05rem', fontWeight: 700, color: stat.color }}>
-                    {stat.value}
-                  </div>
-                </div>
-              ))}
+            <h2 style={{
+              fontFamily: 'Space Grotesk', fontWeight: 800,
+              fontSize: '1.8rem', color: 'var(--text-primary)',
+              lineHeight: 1, marginBottom: '0.35rem',
+            }}>
+              {selectedPlayer.name}
+            </h2>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <span className="pill" style={{
+                background: `${teamColor}15`, color: teamColor,
+                border: `1px solid ${teamColor}35`,
+              }}>
+                {selectedPlayer.position}
+              </span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                {selectedPlayer.team}
+              </span>
+              {selectedPlayer.goals > 0 && <span className="pill pill-green">⚽ {selectedPlayer.goals}</span>}
+              {selectedPlayer.assists > 0 && <span className="pill pill-blue">A {selectedPlayer.assists}</span>}
             </div>
           </div>
-
-          {/* Key moment highlight */}
+          <div style={{ display: 'flex', gap: '2rem' }}>
+            {[
+              { label: 'MIN',     value: `${selectedPlayer.minutesPlayed}'` },
+              { label: 'KM',      value: selectedPlayer.distanceCovered },
+              { label: 'TOP KM/H', value: selectedPlayer.topSpeed },
+            ].map(s => (
+              <div key={s.label} style={{ textAlign: 'center' }}>
+                <div style={{
+                  fontFamily: 'JetBrains Mono', fontSize: '1.25rem',
+                  fontWeight: 700, color: 'var(--text-primary)',
+                }}>
+                  {s.value}
+                </div>
+                <div style={{ fontSize: '0.55rem', color: 'var(--text-muted)', letterSpacing: '0.1em' }}>
+                  {s.label}
+                </div>
+              </div>
+            ))}
+          </div>
           {selectedPlayer.keyMoment && (
             <div style={{
-              background: 'rgba(0,255,135,0.06)',
-              border: '1px solid rgba(0,255,135,0.2)',
+              background: 'rgba(0,255,135,0.05)',
+              border: '1px solid rgba(0,255,135,0.18)',
               borderRadius: '8px',
               padding: '0.75rem 1rem',
-              maxWidth: '280px',
-              flexShrink: 0,
+              maxWidth: '240px',
             }}>
-              <div style={{ fontSize: '0.6rem', color: 'var(--accent-green)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, marginBottom: '0.35rem' }}>
-                Momento Clave — {selectedPlayer.keyMoment.minute}'
+              <div style={{
+                fontSize: '0.58rem', color: 'var(--accent-green)',
+                letterSpacing: '0.1em', fontWeight: 700, marginBottom: '0.3rem',
+              }}>
+                MOMENTO CLAVE · {selectedPlayer.keyMoment.minute}'
               </div>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              <p style={{
+                fontSize: '0.75rem', color: 'var(--text-secondary)',
+                lineHeight: 1.5, margin: 0,
+              }}>
                 {selectedPlayer.keyMoment.description}
-              </div>
-              <span className={`tag ${selectedPlayer.keyMoment.impact === 'high' ? 'tag-green' : 'tag-amber'}`} style={{ marginTop: '0.5rem', display: 'inline-flex' }}>
-                {selectedPlayer.keyMoment.impact === 'high' ? 'Alto impacto' : 'Impacto medio'}
-              </span>
+              </p>
             </div>
           )}
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
-        {/* ---- KPI GRID ---- */}
-        <div>
-          <div className="section-heading">KPIs de Tracking 3D</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '0.65rem' }}>
-            {kpiCards.map(kpi => (
-              <KPICard
-                key={kpi.key}
-                label={kpi.label}
-                value={kpi.value}
-                unit={kpi.unit}
-                trend={kpi.trend}
-                benchmark={kpi.benchmark}
-              />
-            ))}
-          </div>
+      {/* TOP 3 KPIs — big */}
+      <div ref={kpiRowRef} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
+        <BigKPICard
+          label="SPATIAL AWARENESS SCORE"
+          value={selectedPlayer.spatialAwareness}
+          unit="/100"
+          benchmark={71}
+          color="var(--accent-green)"
+          delay={0}
+        />
+        <BigKPICard
+          label="SCAN RATE"
+          value={selectedPlayer.scanRate}
+          unit="esc/min"
+          benchmark={3.1}
+          color="var(--accent-blue)"
+          delay={0.1}
+        />
+        <BigKPICard
+          label="SPRINT VALUE SCORE"
+          value={selectedPlayer.sprintValueScore}
+          unit="sprints"
+          benchmark={5.2}
+          color="var(--accent-amber)"
+          delay={0.2}
+        />
+      </div>
+
+      {/* Pitch + Chemistry */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: '0.75rem' }}>
+        <div className="card" style={{ padding: '1rem' }}>
+          <div className="section-label">Patrón de Movimiento — 105×68m</div>
+          <PitchHeatmap player={selectedPlayer} />
         </div>
-
-        {/* ---- RIGHT COLUMN: Chemistry + Pitch ---- */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-
-          {/* Chemistry card */}
-          <div className="card">
-            <div className="section-heading">Chemistry Score</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <div style={{
-                position: 'relative',
-                width: 64,
-                height: 64,
-                flexShrink: 0,
-              }}>
-                <svg viewBox="0 0 64 64" style={{ transform: 'rotate(-90deg)', width: '100%', height: '100%' }}>
-                  <circle cx="32" cy="32" r="26" fill="none" stroke="var(--bg-tertiary)" strokeWidth="6" />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div className="card" style={{ padding: '1.25rem', flex: 1 }}>
+            <div className="section-label">Chemistry Score</div>
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+              <div style={{ position: 'relative', width: 56, height: 56, flexShrink: 0 }}>
+                <svg viewBox="0 0 56 56" style={{ transform: 'rotate(-90deg)', width: '100%', height: '100%' }}>
+                  <circle cx="28" cy="28" r="22" fill="none" stroke="var(--bg-tertiary)" strokeWidth="5" />
                   <circle
-                    cx="32" cy="32" r="26"
+                    cx="28" cy="28" r="22"
                     fill="none"
                     stroke="var(--accent-green)"
-                    strokeWidth="6"
+                    strokeWidth="5"
                     strokeLinecap="round"
-                    strokeDasharray={`${(selectedPlayer.chemistryScore / 100) * 163.4} 163.4`}
+                    strokeDasharray={`${(selectedPlayer.chemistryScore / 100) * 138.2} 138.2`}
                   />
                 </svg>
                 <div style={{
                   position: 'absolute', inset: 0,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontFamily: 'JetBrains Mono, monospace',
-                  fontSize: '0.9rem',
-                  fontWeight: 700,
-                  color: 'var(--accent-green)',
+                  fontFamily: 'JetBrains Mono', fontSize: '0.85rem',
+                  fontWeight: 700, color: 'var(--accent-green)',
                 }}>
                   {selectedPlayer.chemistryScore}
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                  Mayor correlación espacial con:
-                </div>
-                <div style={{ fontFamily: 'Space Grotesk, sans-serif', fontWeight: 700, fontSize: '1rem', color: 'var(--text-primary)', marginTop: '0.25rem' }}>
-                  {selectedPlayer.chemistryPartner || 'Compañero clave'}
-                </div>
-                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                  Coordinación de movimientos a lo largo del partido
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Mayor correlación con</div>
+                <div style={{
+                  fontFamily: 'Space Grotesk', fontWeight: 700,
+                  fontSize: '0.9rem', color: 'var(--text-primary)', marginTop: '0.2rem',
+                }}>
+                  {selectedPlayer.chemistryPartner || 'N/D'}
                 </div>
               </div>
             </div>
           </div>
-
-          {/* Movement pattern / pitch heatmap */}
-          <div className="card" style={{ padding: '1rem' }}>
-            <div className="section-heading">Patrón de Movimiento</div>
-            <PitchHeatmap player={selectedPlayer} />
-            <div style={{ marginTop: '0.5rem', fontSize: '0.62rem', color: 'var(--text-muted)', textAlign: 'center' }}>
-              Distribución posicional — 105×68m — datos de tracking esquelético 3D
+          <div className="card" style={{ padding: '1.25rem', flex: 1 }}>
+            <div className="section-label">Fatigue Signature</div>
+            <div style={{
+              fontFamily: 'JetBrains Mono', fontSize: '2rem', fontWeight: 700,
+              color: Math.abs(selectedPlayer.fatigueSig) > 18 ? 'var(--accent-red)' : 'var(--accent-amber)',
+            }}>
+              {selectedPlayer.fatigueSig}%
+            </div>
+            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+              caída en segunda mitad
             </div>
           </div>
         </div>
       </div>
 
-      {/* ---- AI ANALYSIS SECTION ---- */}
-      <div className="card">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-          <div className="section-heading" style={{ marginBottom: 0 }}>
-            Análisis IA Táctica
+      {/* AI SPOTLIGHT — MAIN FEATURE */}
+      <div ref={spotlightRef} className="ai-spotlight">
+        <div style={{
+          display: 'flex', alignItems: 'center',
+          justifyContent: 'space-between', marginBottom: '1.25rem',
+        }}>
+          <div>
+            <h3 style={{
+              fontFamily: 'Space Grotesk', fontWeight: 700,
+              fontSize: '1.1rem', color: 'var(--text-primary)', marginBottom: '0.2rem',
+            }}>
+              Análisis Táctico con IA
+            </h3>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>
+              Claude analiza los KPIs 3D y genera un informe táctico de élite
+            </p>
           </div>
           <button
-            className="btn btn-primary"
             onClick={handleAnalyze}
             disabled={isAnalyzing}
-            style={{ opacity: isAnalyzing ? 0.7 : 1, cursor: isAnalyzing ? 'wait' : 'pointer' }}
+            style={{
+              background: isAnalyzing ? 'rgba(0,255,135,0.05)' : 'var(--accent-green)',
+              color: isAnalyzing ? 'var(--accent-green)' : 'var(--bg-primary)',
+              border: isAnalyzing ? '1px solid rgba(0,255,135,0.3)' : 'none',
+              borderRadius: '8px',
+              padding: '0.65rem 1.5rem',
+              fontFamily: 'Space Grotesk',
+              fontWeight: 700,
+              fontSize: '0.85rem',
+              cursor: isAnalyzing ? 'wait' : 'pointer',
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              transition: 'all 0.2s',
+            }}
           >
             {isAnalyzing ? (
               <>
-                <div className="ai-loading-dots">
-                  <div className="ai-loading-dot" />
-                  <div className="ai-loading-dot" />
-                  <div className="ai-loading-dot" />
-                </div>
+                <svg
+                  width="14" height="14" viewBox="0 0 24 24"
+                  fill="none" stroke="currentColor" strokeWidth="2.5"
+                  style={{ animation: 'spin 1s linear infinite' }}
+                >
+                  <path d="M21 12a9 9 0 11-6.219-8.56" />
+                </svg>
                 Analizando...
               </>
             ) : (
-              <>✦ Analizar con IA</>
+              <>{isDone ? '↻ Re-analizar' : '✦ Analizar con IA'}</>
             )}
           </button>
         </div>
 
-        {!aiText && !isAnalyzing && !aiError && (
+        {!aiText && !isAnalyzing && (
           <div style={{
-            padding: '1.5rem',
-            background: 'var(--bg-tertiary)',
-            borderRadius: '8px',
-            textAlign: 'center',
-            color: 'var(--text-muted)',
-            fontSize: '0.82rem',
+            padding: '2rem', textAlign: 'center',
+            background: 'rgba(0,0,0,0.2)', borderRadius: '8px',
+            color: 'var(--text-muted)', fontSize: '0.82rem',
           }}>
-            Hacé clic en "Analizar con IA" para recibir un análisis táctico profundo de{' '}
-            <strong style={{ color: 'var(--text-secondary)' }}>{selectedPlayer.name}</strong>{' '}
-            generado por Claude en tiempo real.
-          </div>
-        )}
-
-        {aiError && (
-          <div style={{
-            padding: '1rem 1.25rem',
-            background: 'rgba(239,68,68,0.06)',
-            border: '1px solid rgba(239,68,68,0.2)',
-            borderRadius: '8px',
-            fontSize: '0.82rem',
-            color: 'var(--accent-red)',
-          }}>
-            <strong>⚠ {aiError}</strong>
+            Presioná{' '}
+            <strong style={{ color: 'var(--accent-green)' }}>"Analizar con IA"</strong>
+            {' '}para recibir el análisis táctico de{' '}
+            <strong style={{ color: 'var(--text-secondary)' }}>{selectedPlayer.name}</strong>
+            {' '}basado en datos de tracking 3D
           </div>
         )}
 
         {(aiText || isAnalyzing) && (
-          <div className="ai-analysis-card">
-            <span className="ai-badge">✦ Claude</span>
-            <div className="streaming-text">
+          <div style={{
+            background: 'rgba(0,0,0,0.25)', borderRadius: '10px',
+            padding: '1.25rem 1.5rem',
+            borderLeft: '3px solid var(--accent-green)',
+          }}>
+            <p style={{
+              fontFamily: 'Space Grotesk', fontSize: '0.95rem',
+              lineHeight: 1.8, color: 'var(--text-primary)',
+              margin: 0, whiteSpace: 'pre-wrap',
+            }}>
               {aiText}
-              {isAnalyzing && <span className="streaming-cursor" />}
-            </div>
+              {isAnalyzing && <span className="cursor-blink" />}
+            </p>
           </div>
         )}
+      </div>
+
+      {/* Secondary KPIs grid */}
+      <div>
+        <div className="section-label">KPIs Secundarios — Tracking 3D Completo</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '0.6rem' }}>
+          {[
+            { key: 'courtVisionIndex',      label: 'Court Vision',      unit: '/100', benchmark: 68 },
+            { key: 'slipstreamPressure',     label: 'Slipstream',        unit: '/100', benchmark: 60 },
+            { key: 'positioningEPA',         label: 'Positioning EPA',   unit: 'pts',  benchmark: 0  },
+            { key: 'pressureCollapseRate',   label: 'Pressure Collapse', unit: '/100', benchmark: 65 },
+            { key: 'launchAngle3D',          label: 'Launch Angle 3D',   unit: '°',    benchmark: 30 },
+            { key: 'coverageShadow',         label: 'Coverage Shadow',   unit: 'm²',   benchmark: 200 },
+            { key: 'pressureIndex3D',        label: '3D Pressure Index', unit: '/100', benchmark: 60 },
+            { key: 'bodyReadinessIndex',     label: 'Body Readiness',    unit: '/100', benchmark: 72 },
+          ].map(({ key, label, unit, benchmark }) => {
+            const val = selectedPlayer[key];
+            const delta = typeof val === 'number' ? (val - benchmark).toFixed(1) : null;
+            const isPositive = parseFloat(delta) >= 0;
+            return (
+              <div key={key} className="card" style={{ padding: '0.9rem 1rem' }}>
+                <div style={{
+                  fontSize: '0.55rem', color: 'var(--text-muted)',
+                  letterSpacing: '0.1em', marginBottom: '0.35rem',
+                }}>
+                  {label.toUpperCase()}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.25rem' }}>
+                  <span style={{
+                    fontFamily: 'JetBrains Mono', fontSize: '1.4rem',
+                    fontWeight: 700, color: 'var(--text-primary)',
+                  }}>
+                    {val !== undefined && val !== null ? val : '—'}
+                  </span>
+                  <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>{unit}</span>
+                </div>
+                {delta !== null && (
+                  <div style={{
+                    fontSize: '0.62rem',
+                    color: isPositive ? 'var(--accent-green)' : 'var(--accent-red)',
+                    fontFamily: 'JetBrains Mono', marginTop: '0.2rem',
+                  }}>
+                    {isPositive ? '+' : ''}{delta} vs liga
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
     </div>
